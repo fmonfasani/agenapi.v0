@@ -1,37 +1,31 @@
 """
-refactored_rest_api.py - API REST completa para el framework de agentes
+rest_api.py - API REST completa para el framework de agentes
 """
 
 import asyncio
 import json
 import logging
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-from functools import wraps
-
 from aiohttp import web, WSMsgType
 import aiohttp_cors
-import aiohttp_swagger
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
+import aiohttp_swagger
 
-# Assuming these imports are from the core framework files provided
 from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus, MessageType, AgentResource, ResourceType
 from core.specialized_agents import ExtendedAgentFactory
 from core.security_system import SecurityManager, Permission, SecurityLevel, AuthenticationMethod
 from core.persistence_system import PersistenceManager, PersistenceFactory, PersistenceBackend
-from framework_config_utils import MetricsCollector # Assuming this exists or is a placeholder for system metrics
+from core.monitoring_system import MetricsCollector # <-- CAMBIO AQUI
 
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
+# ================================\
 # API MODELS AND SCHEMAS
+# ================================\
 
 class APIResponse:
-    """Standard API response format"""
-
+    """Respuesta estándar de la API"""
+    
     @staticmethod
     def success(data: Any = None, message: str = "Operation successful") -> Dict[str, Any]:
         return {
@@ -40,7 +34,7 @@ class APIResponse:
             "data": data,
             "timestamp": datetime.now().isoformat()
         }
-
+        
     @staticmethod
     def error(message: str, code: int = 400, details: Any = None) -> Dict[str, Any]:
         return {
@@ -53,755 +47,1091 @@ class APIResponse:
             "timestamp": datetime.now().isoformat()
         }
 
-    @staticmethod
-    def paginated(data: List[Any], page: int, per_page: int, total: int) -> Dict[str, Any]:
-        return {
-            "success": True,
-            "data": data,
-            "pagination": {
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "pages": (total + per_page - 1) // per_page
-            },
-            "timestamp": datetime.now().isoformat()
-        }
+# ================================\
+# AUTHENTICATION AND AUTHORIZATION
+# ================================\
 
-# AUTHENTICATION AND AUTHORIZATION DECORATORS
-
-def requires_auth(handler: Callable) -> Callable:
-    """Authentication middleware decorator"""
-    @wraps(handler)
-    async def wrapper(request: Request) -> Response:
-        public_routes = ["/api/auth/login", "/api/health", "/api/docs", "/"]
-        if request.path in public_routes or request.path.startswith("/static"):
+async def jwt_middleware(app, handler):
+    """Middleware para autenticación JWT"""
+    async def middleware_handler(request: Request):
+        security_manager: SecurityManager = app['security_manager']
+        
+        # Rutas públicas (no requieren autenticación)
+        public_paths = ['/api/auth/login', '/api/health', '/swagger', '/swagger/swagger.json']
+        if request.path in public_paths or request.path.startswith('/static/'):
             return await handler(request)
 
-        auth_header = request.headers.get("Authorization", "")
-        api_key = request.headers.get("X-API-Key", "")
-
-        security_manager: SecurityManager = request.app["security_manager"]
-        user_info = None
-        session_id = None
-
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                if "jwt" in security_manager.auth_providers:
-                    jwt_provider = security_manager.auth_providers["jwt"]
-                    payload = await jwt_provider.validate_token(token)
-                    if payload:
-                        user_info = payload
-            except Exception as e:
-                logger.error(f"JWT validation error: {e}")
-        elif api_key:
-            try:
-                if "api_key" in security_manager.auth_providers:
-                    api_provider = security_manager.auth_providers["api_key"]
-                    key_info = await api_provider.validate_token(api_key)
-                    if key_info:
-                        user_info = key_info
-            except Exception as e:
-                logger.error(f"API Key validation error: {e}")
-
-        session_cookie = request.cookies.get("session_id")
-        if session_cookie:
-            session = await security_manager.validate_session(session_cookie)
-            if session:
-                user_info = session.get("user_info", {})
-                session_id = session_cookie
-
-        if not user_info:
-            return web.json_response(APIResponse.error("Authentication required", 401), status=401)
-
-        request["user_info"] = user_info
-        request["session_id"] = session_id
-        return await handler(request)
-    return wrapper
-
-def requires_permission(permission: Permission) -> Callable:
-    """Authorization middleware decorator to check specific permissions"""
-    def decorator(handler: Callable) -> Callable:
-        @wraps(handler)
-        async def wrapper(request: Request) -> Response:
-            session_id = request.get("session_id")
-            security_manager: SecurityManager = request.app["security_manager"]
-
-            if session_id:
-                authorized = await security_manager.authorize_action(session_id, permission)
-                if not authorized:
-                    return web.json_response(
-                        APIResponse.error("Insufficient permissions", 403),
-                        status=403
-                    )
-            else:
-                # If no session, rely on API Key permissions (if implemented for perms)
-                # For simplicity, we assume session_id is always present for authenticated requests here.
-                # In a more complex scenario, API Key permissions would also be checked here.
-                pass # The requires_auth decorator ensures user_info is present, permissions should be checked there for API keys.
-
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return web.json_response(APIResponse.error("Authentication required: Bearer token missing"), status=401)
+        
+        token = auth_header.split(' ')[1]
+        
+        try:
+            payload = security_manager.validate_jwt_token(token)
+            request['user'] = payload # Almacenar payload del usuario en la request
             return await handler(request)
+        except Exception as e:
+            logging.error(f"JWT validation failed: {e}")
+            return web.json_response(APIResponse.error("Invalid or expired token", details=str(e)), status=401)
+    
+    return middleware_handler
+
+def authorize(required_permission: Permission):
+    """Decorator para autorización de permisos"""
+    def decorator(func):
+        async def wrapper(request: Request):
+            user_payload = request.get('user')
+            if not user_payload:
+                return web.json_response(APIResponse.error("Authorization failed: No user context (middleware error)"), status=403)
+            
+            security_manager: SecurityManager = request.app['security_manager']
+            
+            if not security_manager.authorize_user_permission(user_payload['user_id'], required_permission):
+                return web.json_response(APIResponse.error(f"Permission denied: Requires {required_permission.value}"), status=403)
+            
+            return await func(request)
         return wrapper
     return decorator
 
 
-# API HANDLERS
-
-class BaseHandler:
-    """Base class for API handlers to provide common utilities."""
-    def __init__(self, framework: AgentFramework, security_manager: SecurityManager):
-        self.framework = framework
-        self.security_manager = security_manager
-
-    async def _handle_request(self, request: Request, logic_func: Callable, success_message: str = "Operation successful", error_message: str = "Internal server error", error_status: int = 500) -> Response:
-        """Helper to standardize request handling, including error responses."""
-        try:
-            result = await logic_func(request)
-            return web.json_response(APIResponse.success(result, success_message))
-        except web.HTTPError as e:
-            return web.json_response(APIResponse.error(e.reason, e.status), status=e.status)
-        except ValueError as e:
-            logger.warning(f"Bad request: {e}")
-            return web.json_response(APIResponse.error(str(e), 400), status=400)
-        except Exception as e:
-            logger.exception(f"{error_message} for {request.path}: {e}")
-            return web.json_response(APIResponse.error(error_message, error_status, str(e)), status=error_status)
-
-
-class AuthenticationHandlers(BaseHandler):
-    """Handlers for authentication and API key management."""
-
-    def __init__(self, security_manager: SecurityManager):
-        super().__init__(None, security_manager) # Framework not directly needed here
-
-    async def login(self, request: Request) -> Response:
-        """Login user with username and password."""
-        async def _login_logic(req: Request):
-            data = await req.json()
-            username = data.get("username")
-            password = data.get("password")
-
-            if not username or not password:
-                raise ValueError("Username and password required")
-
-            auth_result = await self.security_manager.authenticate_user(
-                AuthenticationMethod.JWT_TOKEN,
-                {"username": username, "password": password}
-            )
-
-            if not auth_result:
-                raise web.HTTPUnauthorized(reason="Invalid credentials")
-            return auth_result
-
-        return await self._handle_request(request, _login_logic, "Login successful", "Login error", 401)
-
-    @requires_auth
-    async def logout(self, request: Request) -> Response:
-        """Logout user by invalidating session."""
-        async def _logout_logic(req: Request):
-            session_id = req.get("session_id")
-            if not session_id:
-                raise ValueError("No active session found")
-            success = await self.security_manager.logout_session(session_id)
-            if not success:
-                raise web.HTTPBadRequest(reason="Failed to logout session")
-            return {}
-
-        return await self._handle_request(request, _logout_logic, "Logout successful", "Logout error")
-
-    @requires_auth
-    @requires_permission(Permission.ADMIN_ACCESS) # Or a more specific permission like CREATE_API_KEYS
-    async def create_api_key(self, request: Request) -> Response:
-        """Create API key for programmatic access."""
-        async def _create_api_key_logic(req: Request):
-            data = await req.json()
-            description = data.get("description", "")
-            permissions_list = data.get("permissions", []) # Default to empty list for safety
-
-            permissions = []
-            for perm_str in permissions_list:
-                try:
-                    permissions.append(Permission(perm_str))
-                except ValueError:
-                    raise ValueError(f"Invalid permission: {perm_str}")
-
-            user_info = req["user_info"]
-            user_id = user_info.get("username", "unknown") # Assuming username is the user_id
-
-            api_key = await self.security_manager.create_api_key(
-                user_id, permissions, description
-            )
-            return {
-                "api_key": api_key,
-                "description": description,
-                "permissions": [p.value for p in permissions]
-            }
-
-        return await self._handle_request(request, _create_api_key_logic, "API Key created successfully", "Failed to create API key")
-
-
-class AgentHandlers(BaseHandler):
-    """Handlers for agent management."""
-
-    async def list_agents(self, request: Request) -> Response:
-        """List all agents with pagination and filters."""
-        @requires_auth
-        @requires_permission(Permission.READ_AGENTS)
-        async def _list_agents_logic(req: Request):
-            agents = self.framework.registry.list_all_agents()
-
-            page = int(req.query.get("page", 1))
-            per_page = int(req.query.get("per_page", 10))
-            namespace_filter = req.query.get("namespace")
-            status_filter = req.query.get("status")
-
-            filtered_agents = agents
-            if namespace_filter:
-                filtered_agents = [a for a in filtered_agents if namespace_filter in a.namespace]
-            if status_filter:
-                filtered_agents = [a for a in filtered_agents if a.status.value == status_filter]
-
-            total = len(filtered_agents)
-            start = (page - 1) * per_page
-            end = start + per_page
-            page_agents = filtered_agents[start:end]
-
-            agents_data = []
-            for agent in page_agents:
-                agents_data.append({
-                    "id": agent.id,
-                    "name": agent.name,
-                    "namespace": agent.namespace,
-                    "status": agent.status.value,
-                    "created_at": agent.created_at.isoformat(),
-                    "last_heartbeat": agent.last_heartbeat.isoformat(),
-                    "capabilities_count": len(agent.capabilities),
-                    "metadata": agent.metadata
-                })
-            return APIResponse.paginated(agents_data, page, per_page, total)
-
-        return await self._handle_request(request, _list_agents_logic, "Agents listed successfully")
-
-    @requires_auth
-    @requires_permission(Permission.READ_AGENTS)
-    async def get_agent(self, request: Request) -> Response:
-        """Get detailed information about a specific agent."""
-        async def _get_agent_logic(req: Request):
-            agent_id = req.match_info["agent_id"]
-            agent = self.framework.registry.get_agent(agent_id)
-            if not agent:
-                raise web.HTTPNotFound(reason="Agent not found")
-
-            agent_resources = self.framework.resource_manager.find_resources_by_owner(agent_id)
-
-            return {
-                "id": agent.id,
-                "name": agent.name,
-                "namespace": agent.namespace,
-                "status": agent.status.value,
-                "created_at": agent.created_at.isoformat(),
-                "last_heartbeat": agent.last_heartbeat.isoformat(),
-                "metadata": agent.metadata,
-                "capabilities": [
-                    {
-                        "name": cap.name,
-                        "namespace": cap.namespace,
-                        "description": cap.description,
-                        "input_schema": cap.input_schema,
-                        "output_schema": cap.output_schema
-                    }
-                    for cap in agent.capabilities
-                ],
-                "resources": [
-                    {
-                        "id": res.id,
-                        "name": res.name,
-                        "type": res.type.value,
-                        "namespace": res.namespace,
-                        "created_at": res.created_at.isoformat(),
-                        "updated_at": res.updated_at.isoformat()
-                    }
-                    for res in agent_resources
-                ]
-            }
-        return await self._handle_request(request, _get_agent_logic, "Agent details retrieved successfully", "Failed to get agent details", 404)
-
-    @requires_auth
-    @requires_permission(Permission.CREATE_AGENTS)
-    async def create_agent(self, request: Request) -> Response:
-        """Create a new agent."""
-        async def _create_agent_logic(req: Request):
-            data = await req.json()
-            namespace = data.get("namespace")
-            name = data.get("name")
-            auto_start = data.get("auto_start", True)
-
-            if not namespace or not name:
-                raise ValueError("Namespace and name are required")
-
-            available_namespaces = ExtendedAgentFactory.list_available_namespaces()
-            if namespace not in available_namespaces:
-                raise ValueError(f"Unknown namespace: {namespace}. Available: {', '.join(available_namespaces)}")
-
-            agent = ExtendedAgentFactory.create_agent(namespace, name, self.framework)
-            if auto_start:
-                await agent.start()
-
-            return {
-                "id": agent.id,
-                "name": agent.name,
-                "namespace": agent.namespace,
-                "status": agent.status.value,
-                "created_at": agent.created_at.isoformat()
-            }
-        return await self._handle_request(request, _create_agent_logic, "Agent created successfully")
-
-    @requires_auth
-    @requires_permission(Permission.EXECUTE_ACTIONS)
-    async def execute_agent_action(self, request: Request) -> Response:
-        """Execute action on an agent."""
-        async def _execute_action_logic(req: Request):
-            agent_id = req.match_info["agent_id"]
-            agent = self.framework.registry.get_agent(agent_id)
-            if not agent:
-                raise web.HTTPNotFound(reason="Agent not found")
-
-            data = await req.json()
-            action = data.get("action")
-            params = data.get("params", {})
-
-            if not action:
-                raise ValueError("Action is required")
-
-            result = await agent.execute_action(action, params)
-            return {
-                "action": action,
-                "result": result,
-                "agent_id": agent_id
-            }
-        return await self._handle_request(request, _execute_action_logic, "Action executed successfully", "Failed to execute action")
-
-    @requires_auth
-    @requires_permission(Permission.DELETE_AGENTS)
-    async def delete_agent(self, request: Request) -> Response:
-        """Delete an agent."""
-        async def _delete_agent_logic(req: Request):
-            agent_id = req.match_info["agent_id"]
-            agent = self.framework.registry.get_agent(agent_id)
-            if not agent:
-                raise web.HTTPNotFound(reason="Agent not found")
-
-            await agent.stop()
-            self.framework.registry.remove_agent(agent.id) # Assuming a remove_agent method exists in registry
-
-            return {} # Empty data for success
-
-        return await self._handle_request(request, _delete_agent_logic, f"Agent {request.match_info['agent_id']} deleted successfully")
-
-
-class ResourceHandlers(BaseHandler):
-    """Handlers for resource management."""
-
-    @requires_auth
-    @requires_permission(Permission.READ_RESOURCES)
-    async def list_resources(self, request: Request) -> Response:
-        """List all resources with filters."""
-        async def _list_resources_logic(req: Request):
-            all_resources = []
-            agents = self.framework.registry.list_all_agents()
-
-            for agent in agents:
-                agent_resources = self.framework.resource_manager.find_resources_by_owner(agent.id)
-                all_resources.extend(agent_resources)
-
-            resource_type = req.query.get("type")
-            owner_id = req.query.get("owner")
-
-            if resource_type:
-                all_resources = [r for r in all_resources if r.type.value == resource_type]
-            if owner_id:
-                all_resources = [r for r in all_resources if r.owner_agent_id == owner_id]
-
-            page = int(req.query.get("page", 1))
-            per_page = int(req.query.get("per_page", 10))
-
-            total = len(all_resources)
-            start = (page - 1) * per_page
-            end = start + per_page
-            page_resources = all_resources[start:end]
-
-            resources_data = []
-            for resource in page_resources:
-                resources_data.append({
-                    "id": resource.id,
-                    "name": resource.name,
-                    "type": resource.type.value,
-                    "namespace": resource.namespace,
-                    "owner_agent_id": resource.owner_agent_id,
-                    "created_at": resource.created_at.isoformat(),
-                    "updated_at": resource.updated_at.isoformat(),
-                    "metadata": resource.metadata,
-                    "data_size": len(str(resource.data)) # Consider a more robust way to calculate data size if 'data' can be complex
-                })
-            return APIResponse.paginated(resources_data, page, per_page, total)
-
-        return await self._handle_request(request, _list_resources_logic, "Resources listed successfully")
-
-    @requires_auth
-    @requires_permission(Permission.READ_RESOURCES)
-    async def get_resource(self, request: Request) -> Response:
-        """Get details of a specific resource."""
-        async def _get_resource_logic(req: Request):
-            resource_id = req.match_info["resource_id"]
-            resource = await self.framework.resource_manager.get_resource(resource_id)
-            if not resource:
-                raise web.HTTPNotFound(reason="Resource not found")
-
-            return {
-                "id": resource.id,
-                "name": resource.name,
-                "type": resource.type.value,
-                "namespace": resource.namespace,
-                "owner_agent_id": resource.owner_agent_id,
-                "created_at": resource.created_at.isoformat(),
-                "updated_at": resource.updated_at.isoformat(),
-                "metadata": resource.metadata,
-                "data": resource.data
-            }
-        return await self._handle_request(request, _get_resource_logic, "Resource details retrieved successfully", "Failed to get resource", 404)
-
-
-class SystemHandlers(BaseHandler):
-    """Handlers for system-wide information and metrics."""
-
-    def __init__(self, framework: AgentFramework, security_manager: SecurityManager):
-        super().__init__(framework, security_manager)
-        self.metrics_collector = MetricsCollector(framework)
-
-    async def health_check(self, request: Request) -> Response:
-        """Health check of the system."""
-        async def _health_check_logic(req: Request):
-            agents = self.framework.registry.list_all_agents()
-            return {
-                "status": "healthy",
-                "timestamp": datetime.now().isoformat(),
-                "framework": {
-                    "total_agents": len(agents),
-                    "active_agents": len([a for a in agents if a.status == AgentStatus.ACTIVE]),
-                    "running": True
-                },
-                "security": self.security_manager.get_security_status()
-            }
-        return await self._handle_request(request, _health_check_logic, "System health check successful")
-
-    @requires_auth
-    @requires_permission(Permission.MONITOR_SYSTEM)
-    async def get_metrics(self, request: Request) -> Response:
-        """Get system metrics and statistics."""
-        async def _get_metrics_logic(req: Request):
-            metrics = self.metrics_collector.get_metrics()
-            agents = self.framework.registry.list_all_agents()
-            status_counts = {}
-            for agent in agents:
-                status = agent.status.value
-                status_counts[status] = status_counts.get(status, 0) + 1
-            metrics["agent_status_distribution"] = status_counts
-            return metrics
-        return await self._handle_request(request, _get_metrics_logic, "System metrics retrieved successfully")
-
-    @requires_auth
-    async def get_namespaces(self, request: Request) -> Response:
-        """Get available agent namespaces."""
-        async def _get_namespaces_logic(req: Request):
-            namespaces = ExtendedAgentFactory.list_available_namespaces()
-            return {
-                "namespaces": namespaces,
-                "total": len(namespaces)
-            }
-        return await self._handle_request(request, _get_namespaces_logic, "Available namespaces retrieved successfully")
-
-
-# MAIN API SERVER
+# ================================\
+# API SERVER
+# ================================\
 
 class FrameworkAPIServer:
-    """REST API server for the agent framework."""
-
-    def __init__(self, framework: AgentFramework, host: str = "localhost", port: int = 8000, jwt_secret: str = "your_jwt_secret_here", session_max_hours: int = 24):
+    """Servidor API REST para el Framework de Agentes"""
+    
+    def __init__(self, framework: AgentFramework, security_manager: SecurityManager, persistence_manager: PersistenceManager, host: str = "0.0.0.0", port: int = 8000):
         self.framework = framework
+        self.security_manager = security_manager
+        self.persistence_manager = persistence_manager
         self.host = host
         self.port = port
-        self.app = web.Application()
+        self.app = web.Application(middlewares=[jwt_middleware])
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.INFO)
 
-        # Configure security manager
-        self.security_manager = SecurityManager({
-            "jwt_secret": jwt_secret,
-            "session_max_hours": session_max_hours
-        })
-
-        # Configure persistence if available (placeholder - actual initialization depends on PersistenceFactory)
-        self.persistence_manager: Optional[PersistenceManager] = None
-        # Example of initializing persistence if needed:
-        # self.persistence_manager = PersistenceFactory.create_persistence_manager(PersistenceBackend.SQLITE, "framework.db")
-
-
-        # Add core components to the app for handlers to access
-        self.app["framework"] = framework
-        self.app["security_manager"] = self.security_manager
-        if self.persistence_manager:
-            self.app["persistence_manager"] = self.persistence_manager
-
-        # Initialize handlers
-        self.auth_handlers = AuthenticationHandlers(self.security_manager)
-        self.agent_handlers = AgentHandlers(framework, self.security_manager)
-        self.resource_handlers = ResourceHandlers(framework, self.security_manager)
-        self.system_handlers = SystemHandlers(framework, self.security_manager)
-
-        # Setup routes, CORS, and Swagger
+        # Initialize MetricsCollector
+        self.metrics_collector = MetricsCollector(framework)
+        
         self._setup_routes()
         self._setup_cors()
         self._setup_swagger()
 
+        # Store important components in app for middleware/handlers
+        self.app['framework'] = framework
+        self.app['security_manager'] = security_manager
+        self.app['persistence_manager'] = persistence_manager
+        self.app['metrics_collector'] = self.metrics_collector # Make it accessible
+
     def _setup_routes(self):
-        """Configure API routes."""
-        # Authentication routes
-        self.app.router.add_post("/api/auth/login", self.auth_handlers.login)
-        self.app.router.add_post("/api/auth/logout", self.auth_handlers.logout)
-        self.app.router.add_post("/api/auth/api-keys", self.auth_handlers.create_api_key)
+        """Configura las rutas de la API."""
+        self.app.router.add_get("/api/health", self.health_check)
+        self.app.router.add_post("/api/auth/login", self.login)
+        
+        self.app.router.add_get("/api/agents", self.list_agents)
+        self.app.router.add_post("/api/agents", self.create_agent)
+        self.app.router.add_get("/api/agents/{agent_id}", self.get_agent_details)
+        self.app.router.add_put("/api/agents/{agent_id}", self.update_agent)
+        self.app.router.add_delete("/api/agents/{agent_id}", self.delete_agent)
+        self.app.router.add_post("/api/agents/{agent_id}/start", self.start_agent)
+        self.app.router.add_post("/api/agents/{agent_id}/stop", self.stop_agent)
 
-        # Agent routes
-        self.app.router.add_get("/api/agents", self.agent_handlers.list_agents)
-        self.app.router.add_get("/api/agents/{agent_id}", self.agent_handlers.get_agent)
-        self.app.router.add_post("/api/agents", self.agent_handlers.create_agent)
-        self.app.router.add_post("/api/agents/{agent_id}/actions", self.agent_handlers.execute_agent_action)
-        self.app.router.add_delete("/api/agents/{agent_id}", self.agent_handlers.delete_agent)
+        self.app.router.add_post("/api/messages", self.send_message)
+        self.app.router.add_get("/api/messages", self.list_messages)
+        self.app.router.add_get("/api/messages/{message_id}", self.get_message_details)
 
-        # Resource routes
-        self.app.router.add_get("/api/resources", self.resource_handlers.list_resources)
-        self.app.router.add_get("/api/resources/{resource_id}", self.resource_handlers.get_resource)
+        self.app.router.add_get("/api/resources", self.list_resources)
+        self.app.router.add_post("/api/resources", self.create_resource)
+        self.app.router.add_get("/api/resources/{resource_id}", self.get_resource_details)
+        self.app.router.add_put("/api/resources/{resource_id}", self.update_resource)
+        self.app.router.add_delete("/api/resources/{resource_id}", self.delete_resource)
 
-        # System routes
-        self.app.router.add_get("/api/health", self.system_handlers.health_check)
-        self.app.router.add_get("/api/metrics", self.system_handlers.get_metrics)
-        self.app.router.add_get("/api/namespaces", self.system_handlers.get_namespaces)
-
-        # Documentation
-        self.app.router.add_get("/", self._serve_docs)
+        self.app.router.add_get("/api/metrics", self.get_metrics)
+        
+        # WebSocket para streaming de logs o eventos
+        self.app.router.add_get("/ws/events", self.websocket_handler)
 
     def _setup_cors(self):
-        """Configure CORS policies."""
+        """Configura CORS para permitir solicitudes desde el dashboard web."""
         cors = aiohttp_cors.setup(self.app, defaults={
             "*": aiohttp_cors.ResourceOptions(
                 allow_credentials=True,
                 expose_headers="*",
                 allow_headers="*",
-                allow_methods="*"
+                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
             )
         })
         for route in list(self.app.router.routes()):
             cors.add(route)
 
     def _setup_swagger(self):
-        """Configure Swagger/OpenAPI documentation."""
-        # In a real implementation, aiohttp_swagger would be used to auto-generate docs
-        # aiohttp_swagger.setup(self.app, swagger_url="/api/docs", ui_url="/api/docs/")
-        logger.info("Swagger documentation configured at /api/docs")
-
-    async def _serve_docs(self, request: Request) -> Response:
-        """Serve basic API documentation HTML."""
-        docs_html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Agent Framework API Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-        .endpoint { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .method { color: white; padding: 4px 8px; border-radius: 3px; font-weight: bold; }
-        .get { background: #61affe; }
-        .post { background: #49cc90; }
-        .delete { background: #f93e3e; }
-        code { background: #f1f1f1; padding: 2px 4px; border-radius: 3px; }
-    </style>
-</head>
-<body>
-    <h1>🤖 Agent Framework API Documentation</h1>
-    
-    <h2>Authentication</h2>
-    <div class="endpoint">
-        <span class="method post">POST</span> <code>/api/auth/login</code>
-        <p>Login with username and password to get JWT token</p>
-        <pre>{"username": "admin", "password": "password"}</pre>
-    </div>
-    
-    <div class="endpoint">
-        <span class="method post">POST</span> <code>/api/auth/logout</code>
-        <p>Logout user by invalidating session.</p>
-    </div>
-
-    <div class="endpoint">
-        <span class="method post">POST</span> <code>/api/auth/api-keys</code>
-        <p>Create API key for programmatic access</p>
-    </div>
-    
-    <h2>Agents</h2>
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/agents</code>
-        <p>List all agents with pagination and filters</p>
-        <p>Query params: page, per_page, namespace, status</p>
-    </div>
-    
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/agents/{agent_id}</code>
-        <p>Get detailed information about a specific agent</p>
-    </div>
-    
-    <div class="endpoint">
-        <span class="method post">POST</span> <code>/api/agents</code>
-        <p>Create a new agent</p>
-        <pre>{"namespace": "agent.planning.strategist", "name": "my_agent"}</pre>
-    </div>
-    
-    <div class="endpoint">
-        <span class="method post">POST</span> <code>/api/agents/{agent_id}/actions</code>
-        <p>Execute action on an agent</p>
-        <pre>{"action": "generate.code", "params": {"specification": {...}}}</pre>
-    </div>
-    <div class="endpoint">
-        <span class="method delete">DELETE</span> <code>/api/agents/{agent_id}</code>
-        <p>Delete an agent.</p>
-    </div>
-    
-    <h2>Resources</h2>
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/resources</code>
-        <p>List all resources with filters</p>
-        <p>Query params: page, per_page, type, owner</p>
-    </div>
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/resources/{resource_id}</code>
-        <p>Get details of a specific resource.</p>
-    </div>
-    
-    <h2>System</h2>
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/health</code>
-        <p>System health check</p>
-    </div>
-    
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/metrics</code>
-        <p>System metrics and statistics</p>
-    </div>
-    
-    <div class="endpoint">
-        <span class="method get">GET</span> <code>/api/namespaces</code>
-        <p>Available agent namespaces</p>
-    </div>
-    
-    <h2>Authentication Methods</h2>
-    <h3>JWT Token</h3>
-    <p>Add header: <code>Authorization: Bearer &lt;token&gt;</code></p>
-    
-    <h3>API Key</h3>
-    <p>Add header: <code>X-API-Key: &lt;api_key&gt;</code></p>
-    
-    <h2>Example Usage</h2>
-    <pre>
-# Login
-curl -X POST http://localhost:8000/api/auth/login \\
-  -H "Content-Type: application/json" \\
-  -d '{"username": "admin", "password": "admin_password"}'
-
-# Create Agent
-curl -X POST http://localhost:8000/api/agents \\
-  -H "Authorization: Bearer &lt;token&gt;" \\
-  -H "Content-Type: application/json" \\
-  -d '{"namespace": "agent.planning.strategist", "name": "my_strategist"}'
-
-# Execute Action
-curl -X POST http://localhost:8000/api/agents/{agent_id}/actions \\
-  -H "Authorization: Bearer &lt;token&gt;" \\
-  -H "Content-Type: application/json" \\
-  -d '{"action": "define.strategy", "params": {"requirements": {"goal": "test"}}}'
-    </pre>
-</body>
-</html>
-        """
-        return web.Response(text=docs_html, content_type="text/html")
+        """Configura Swagger/OpenAPI UI."""
+        aiohttp_swagger.setup_swagger(
+            self.app,
+            swagger_url="/swagger",
+            ui_version=3,
+            title="Autonomous Agent Framework API",
+            description="API para interactuar con el Framework de Agentes Autónomos.",
+            swagger_info={
+                'info': {
+                    'title': 'Autonomous Agent Framework API',
+                    'version': '1.0.0',
+                    'description': 'Comprehensive API for managing autonomous agents.',
+                }
+            }
+        )
+        self.logger.info(f"Swagger UI available at http://{self.host}:{self.port}/swagger")
 
     async def start(self):
-        """Start the API server."""
+        """Inicia el servidor API."""
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
-        logger.info(f"API Server started on http://{self.host}:{self.port}")
-        # Keep the server running
+        self.logger.info(f"API Server started on http://{self.host}:{self.port}")
+        return runner # Return runner to allow graceful shutdown
+
+    async def stop(self):
+        """Detiene el servidor API."""
+        self.logger.info("Stopping API Server...")
+        if self.app.cleanup_ctx:
+            # Call cleanup functions if any are registered
+            await self.app.cleanup()
+        await self.app.shutdown()
+        await self.app.cleanup()
+        self.logger.info("API Server stopped.")
+
+
+    # ================================\
+    # API HANDLERS
+    # ================================\
+
+    async def health_check(self, request: Request):
+        """
+        ---
+        summary: Health Check
+        description: Checks the health and status of the framework and its components.
+        tags:
+          - System
+        produces:
+          - application/json
+        responses:
+          200:
+            description: System is healthy
+            schema:
+              type: object
+              properties:
+                success: {type: boolean}
+                message: {type: string}
+                data:
+                  type: object
+                  properties:
+                    status: {type: string, description: Overall system status}
+                    framework: {type: object, description: Framework core status}
+                    api: {type: object, description: API server status}
+                    persistence: {type: object, description: Persistence system status}
+                    security: {type: object, description: Security system status}
+                    monitoring: {type: object, description: Monitoring system status}
+        """
+        framework: AgentFramework = request.app['framework']
+        security_manager: SecurityManager = request.app['security_manager']
+        persistence_manager: PersistenceManager = request.app['persistence_manager']
+        metrics_collector: MetricsCollector = request.app['metrics_collector']
+        
+        framework_status = await framework.get_status()
+        security_status = security_manager.get_security_status()
+        persistence_status = await persistence_manager.get_status()
+        monitoring_status = metrics_collector.get_monitoring_status() # Use metrics_collector for monitoring status
+
+        overall_status = "healthy"
+        if framework_status["status"] == "degraded" or \
+           security_status["status"] == "degraded" or \
+           persistence_status["status"] == "degraded" or \
+           monitoring_status["status"] == "degraded":
+            overall_status = "degraded"
+        if framework_status["status"] == "error" or \
+           security_status["status"] == "error" or \
+           persistence_status["status"] == "error" or \
+           monitoring_status["status"] == "error":
+            overall_status = "error"
+
+        response_data = {
+            "status": overall_status,
+            "message": "System operational",
+            "framework": framework_status,
+            "api": {"status": "healthy", "port": self.port},
+            "persistence": persistence_status,
+            "security": security_status,
+            "monitoring": monitoring_status
+        }
+        return web.json_response(APIResponse.success(response_data))
+
+    async def login(self, request: Request):
+        """
+        ---
+        summary: User Login
+        description: Authenticates a user and returns an authentication token.
+        tags:
+          - Authentication
+        parameters:
+          - in: body
+            name: body
+            schema:
+              type: object
+              required:
+                - method
+              properties:
+                method: {type: string, enum: [api_key, jwt_token], description: Authentication method}
+                username: {type: string, description: Username (for JWT_TOKEN)}
+                password: {type: string, description: Password (for JWT_TOKEN)}
+                api_key: {type: string, description: API Key (for API_KEY)}
+        responses:
+          200:
+            description: Login successful
+            schema:
+              type: object
+              properties:
+                success: {type: boolean}
+                data:
+                  type: object
+                  properties:
+                    token: {type: string, description: JWT or API Key token}
+          400: {description: Invalid input}
+          401: {description: Authentication failed}
+        """
+        security_manager: SecurityManager = request.app['security_manager']
+        data = await request.json()
+        
+        auth_method_str = data.get("method")
+        username = data.get("username")
+        password = data.get("password")
+        api_key = data.get("api_key")
+
+        if not auth_method_str:
+            return web.json_response(APIResponse.error("Authentication method is required"), status=400)
+
         try:
-            while True:
-                await asyncio.sleep(3600) # Sleep for 1 hour
-        except asyncio.CancelledError:
-            pass
+            auth_method = AuthenticationMethod(auth_method_str.upper())
+        except ValueError:
+            return web.json_response(APIResponse.error("Invalid authentication method"), status=400)
+
+        token = None
+        if auth_method == AuthenticationMethod.JWT_TOKEN:
+            if not username or not password:
+                return web.json_response(APIResponse.error("Username and password are required for JWT login"), status=400)
+            
+            user_id = await security_manager.authenticate_user_jwt(username, password)
+            if user_id:
+                token = security_manager.generate_jwt_token(user_id)
+            else:
+                return web.json_response(APIResponse.error("Invalid username or password"), status=401)
+        
+        elif auth_method == AuthenticationMethod.API_KEY:
+            if not api_key:
+                return web.json_response(APIResponse.error("API Key is required for API_KEY login"), status=400)
+            
+            user_id = await security_manager.authenticate_api_key(api_key)
+            if user_id:
+                token = api_key # For API Key method, the key itself acts as the token
+            else:
+                return web.json_response(APIResponse.error("Invalid API Key"), status=401)
+        
+        else:
+            return web.json_response(APIResponse.error(f"Authentication method {auth_method_str} not supported"), status=400)
+
+        if token:
+            return web.json_response(APIResponse.success({"token": token}, "Login successful"))
+        else:
+            return web.json_response(APIResponse.error("Authentication failed"), status=401)
+
+    @authorize(Permission.READ_AGENTS)
+    async def list_agents(self, request: Request):
+        """
+        ---
+        summary: List Agents
+        description: Retrieves a list of all registered agents in the framework.
+        tags:
+          - Agents
+        produces:
+          - application/json
+        responses:
+          200:
+            description: List of agents
+            schema:
+              type: object
+              properties:
+                success: {type: boolean}
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      name: {type: string}
+                      namespace: {type: string}
+                      status: {type: string}
+                      capabilities: {type: array, items: {type: object}}
+                      last_heartbeat: {type: string, format: date-time}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        agents = framework.registry.list_all_agents()
+        agent_data = [
+            {
+                "id": agent.id,
+                "name": agent.name,
+                "namespace": agent.namespace,
+                "status": agent.status.value,
+                "capabilities": [{"name": c.name, "namespace": c.namespace, "description": c.description} for c in agent.capabilities],
+                "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None
+            } for agent in agents
+        ]
+        return web.json_response(APIResponse.success(agent_data))
+
+    @authorize(Permission.CREATE_AGENTS)
+    async def create_agent(self, request: Request):
+        """
+        ---
+        summary: Create Agent
+        description: Creates a new agent in the framework.
+        tags:
+          - Agents
+        parameters:
+          - in: body
+            name: body
+            schema:
+              type: object
+              required:
+                - namespace
+                - name
+              properties:
+                namespace: {type: string, description: Namespace of the agent (e.g., agent.planning.strategist)}
+                name: {type: string, description: Unique name of the agent}
+                description: {type: string, description: Optional description for the agent}
+                capabilities:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name: {type: string}
+                      namespace: {type: string}
+                      description: {type: string}
+        responses:
+          200:
+            description: Agent created successfully
+          400: {description: Invalid input}
+          403: {description: Permission denied}
+          409: {description: Agent with this name/ID already exists}
+        """
+        framework: AgentFramework = request.app['framework']
+        data = await request.json()
+        
+        namespace = data.get("namespace")
+        name = data.get("name")
+        description = data.get("description", "")
+        capabilities_data = data.get("capabilities", [])
+
+        if not namespace or not name:
+            return web.json_response(APIResponse.error("Namespace and name are required"), status=400)
+        
+        try:
+            # Use ExtendedAgentFactory to create agents dynamically from string namespace
+            agent = ExtendedAgentFactory.create_agent(namespace, name, framework, description=description)
+            if not agent:
+                return web.json_response(APIResponse.error(f"Invalid agent namespace or type: {namespace}"), status=400)
+            
+            # Add capabilities from payload if provided
+            for cap_data in capabilities_data:
+                agent.add_capability(cap_data["name"], cap_data["namespace"], cap_data.get("description", ""))
+
+            await framework.registry.register_agent(agent)
+            await agent.initialize() # Initialize the agent after registration
+            
+            return web.json_response(APIResponse.success({"id": agent.id, "name": agent.name, "status": agent.status.value}, "Agent created"))
+        except ValueError as e:
+            return web.json_response(APIResponse.error(str(e)), status=409)
+        except Exception as e:
+            self.logger.exception("Error creating agent")
+            return web.json_response(APIResponse.error(f"Internal server error: {e}"), status=500)
+
+    @authorize(Permission.READ_AGENTS)
+    async def get_agent_details(self, request: Request):
+        """
+        ---
+        summary: Get Agent Details
+        description: Retrieves detailed information about a specific agent by ID.
+        tags:
+          - Agents
+        parameters:
+          - in: path
+            name: agent_id
+            type: string
+            required: true
+            description: ID of the agent to retrieve.
+        responses:
+          200:
+            description: Agent details
+          404: {description: Agent not found}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        agent_id = request.match_info['agent_id']
+        
+        agent = framework.registry.get_agent(agent_id)
+        if not agent:
+            return web.json_response(APIResponse.error(f"Agent with ID {agent_id} not found"), status=404)
+        
+        agent_data = {
+            "id": agent.id,
+            "name": agent.name,
+            "namespace": agent.namespace,
+            "status": agent.status.value,
+            "description": agent.description,
+            "capabilities": [{"name": c.name, "namespace": c.namespace, "description": c.description} for c in agent.capabilities],
+            "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None,
+            "created_at": agent.created_at.isoformat(),
+            "metrics": agent.get_metrics() # Example: agent-specific metrics
+        }
+        return web.json_response(APIResponse.success(agent_data))
+
+    @authorize(Permission.WRITE_AGENTS)
+    async def update_agent(self, request: Request):
+        """
+        ---
+        summary: Update Agent
+        description: Updates the properties of an existing agent.
+        tags:
+          - Agents
+        parameters:
+          - in: path
+            name: agent_id
+            type: string
+            required: true
+            description: ID of the agent to update.
+          - in: body
+            name: body
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                description: {type: string}
+                status: {type: string, enum: [initializing, active, busy, idle, error, terminated, suspended]}
+        responses:
+          200:
+            description: Agent updated successfully
+          400: {description: Invalid input}
+          403: {description: Permission denied}
+          404: {description: Agent not found}
+        """
+        framework: AgentFramework = request.app['framework']
+        agent_id = request.match_info['agent_id']
+        data = await request.json()
+
+        agent = framework.registry.get_agent(agent_id)
+        if not agent:
+            return web.json_response(APIResponse.error(f"Agent with ID {agent_id} not found"), status=404)
+        
+        if 'name' in data:
+            agent.name = data['name']
+        if 'description' in data:
+            agent.description = data['description']
+        if 'status' in data:
+            try:
+                agent.status = AgentStatus(data['status'].lower())
+            except ValueError:
+                return web.json_response(APIResponse.error("Invalid agent status"), status=400)
+        
+        # In a real system, you might save the agent state to persistence here
+        # await request.app['persistence_manager'].save_agent_state(agent) # Assuming this method exists
+
+        return web.json_response(APIResponse.success({"id": agent.id, "name": agent.name, "status": agent.status.value}, "Agent updated"))
+
+    @authorize(Permission.DELETE_AGENTS)
+    async def delete_agent(self, request: Request):
+        """
+        ---
+        summary: Delete Agent
+        description: Deletes an agent from the framework by ID.
+        tags:
+          - Agents
+        parameters:
+          - in: path
+            name: agent_id
+            type: string
+            required: true
+            description: ID of the agent to delete.
+        responses:
+          200:
+            description: Agent deleted successfully
+          403: {description: Permission denied}
+          404: {description: Agent not found}
+        """
+        framework: AgentFramework = request.app['framework']
+        agent_id = request.match_info['agent_id']
+        
+        agent = framework.registry.get_agent(agent_id)
+        if not agent:
+            return web.json_response(APIResponse.error(f"Agent with ID {agent_id} not found"), status=404)
+        
+        await framework.registry.deregister_agent(agent_id)
+        return web.json_response(APIResponse.success(None, f"Agent {agent_id} deleted"))
+
+    @authorize(Permission.EXECUTE_ACTIONS)
+    async def start_agent(self, request: Request):
+        """
+        ---
+        summary: Start Agent
+        description: Starts a registered agent.
+        tags:
+          - Agents
+        parameters:
+          - in: path
+            name: agent_id
+            type: string
+            required: true
+            description: ID of the agent to start.
+        responses:
+          200:
+            description: Agent started successfully
+          404: {description: Agent not found}
+          400: {description: Agent already active or error starting}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        agent_id = request.match_info['agent_id']
+        
+        agent = framework.registry.get_agent(agent_id)
+        if not agent:
+            return web.json_response(APIResponse.error(f"Agent with ID {agent_id} not found"), status=404)
+        
+        if agent.status == AgentStatus.ACTIVE or agent.status == AgentStatus.BUSY:
+            return web.json_response(APIResponse.error(f"Agent {agent_id} is already active."), status=400)
+            
+        try:
+            await agent.start()
+            return web.json_response(APIResponse.success({"id": agent.id, "status": agent.status.value}, f"Agent {agent_id} started"))
+        except Exception as e:
+            self.logger.exception(f"Error starting agent {agent_id}")
+            return web.json_response(APIResponse.error(f"Error starting agent: {e}"), status=500)
+
+    @authorize(Permission.EXECUTE_ACTIONS)
+    async def stop_agent(self, request: Request):
+        """
+        ---
+        summary: Stop Agent
+        description: Stops a running agent.
+        tags:
+          - Agents
+        parameters:
+          - in: path
+            name: agent_id
+            type: string
+            required: true
+            description: ID of the agent to stop.
+        responses:
+          200:
+            description: Agent stopped successfully
+          404: {description: Agent not found}
+          400: {description: Agent already inactive or error stopping}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        agent_id = request.match_info['agent_id']
+        
+        agent = framework.registry.get_agent(agent_id)
+        if not agent:
+            return web.json_response(APIResponse.error(f"Agent with ID {agent_id} not found"), status=404)
+        
+        if agent.status == AgentStatus.TERMINATED:
+            return web.json_response(APIResponse.error(f"Agent {agent_id} is already terminated."), status=400)
+            
+        try:
+            await agent.stop()
+            return web.json_response(APIResponse.success({"id": agent.id, "status": agent.status.value}, f"Agent {agent_id} stopped"))
+        except Exception as e:
+            self.logger.exception(f"Error stopping agent {agent_id}")
+            return web.json_response(APIResponse.error(f"Error stopping agent: {e}"), status=500)
+
+    @authorize(Permission.EXECUTE_ACTIONS)
+    async def send_message(self, request: Request):
+        """
+        ---
+        summary: Send Message
+        description: Sends a message (command or request) to a specific agent.
+        tags:
+          - Messaging
+        parameters:
+          - in: body
+            name: body
+            schema:
+              type: object
+              required:
+                - receiver_id
+                - message_type
+                - payload
+              properties:
+                receiver_id: {type: string, description: ID of the receiving agent}
+                message_type: {type: string, enum: [command, request, response, event], description: Type of message}
+                payload: {type: object, description: Message payload (e.g., {'action': 'do_something', 'params': {}})}
+        responses:
+          200:
+            description: Message sent successfully
+          400: {description: Invalid input}
+          404: {description: Receiver agent not found}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        sender_id = request['user']['user_id'] # Use authenticated user/agent ID as sender
+        data = await request.json()
+
+        receiver_id = data.get("receiver_id")
+        message_type_str = data.get("message_type")
+        payload = data.get("payload")
+
+        if not receiver_id or not message_type_str or not payload:
+            return web.json_response(APIResponse.error("Receiver ID, message type, and payload are required"), status=400)
+        
+        receiver_agent = framework.registry.get_agent(receiver_id)
+        if not receiver_agent:
+            return web.json_response(APIResponse.error(f"Receiver agent with ID {receiver_id} not found"), status=404)
+
+        try:
+            message_type = MessageType(message_type_str.upper())
+            message_id = await framework.message_bus.send_message(sender_id, receiver_id, message_type, payload)
+            return web.json_response(APIResponse.success({"message_id": message_id}, "Message sent"))
+        except ValueError:
+            return web.json_response(APIResponse.error("Invalid message type"), status=400)
+        except Exception as e:
+            self.logger.exception("Error sending message")
+            return web.json_response(APIResponse.error(f"Internal server error: {e}"), status=500)
+
+    @authorize(Permission.READ_MESSAGES)
+    async def list_messages(self, request: Request):
+        """
+        ---
+        summary: List Messages
+        description: Retrieves a list of messages, optionally filtered by sender, receiver, or type.
+        tags:
+          - Messaging
+        parameters:
+          - in: query
+            name: sender_id
+            type: string
+            description: Filter messages by sender agent ID.
+          - in: query
+            name: receiver_id
+            type: string
+            description: Filter messages by receiver agent ID.
+          - in: query
+            name: message_type
+            type: string
+            enum: [command, request, response, event, heartbeat, error]
+            description: Filter messages by type.
+          - in: query
+            name: limit
+            type: integer
+            description: Maximum number of messages to return (default: 100).
+        responses:
+          200:
+            description: List of messages
+          403: {description: Permission denied}
+        """
+        persistence_manager: PersistenceManager = request.app['persistence_manager']
+        
+        sender_id = request.query.get("sender_id")
+        receiver_id = request.query.get("receiver_id")
+        message_type_str = request.query.get("message_type")
+        limit = int(request.query.get("limit", 100))
+
+        message_type = None
+        if message_type_str:
+            try:
+                message_type = MessageType(message_type_str.upper())
+            except ValueError:
+                return web.json_response(APIResponse.error("Invalid message type filter"), status=400)
+
+        messages = await persistence_manager.backend.load_messages(
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            message_type=message_type,
+            limit=limit
+        )
+        
+        message_data = [asdict(msg) for msg in messages] # Assuming AgentMessage is a dataclass
+        # Convert datetime objects to ISO format strings
+        for msg in message_data:
+            if isinstance(msg.get('timestamp'), datetime):
+                msg['timestamp'] = msg['timestamp'].isoformat()
+            if isinstance(msg.get('message_type'), Enum):
+                msg['message_type'] = msg['message_type'].value
+        
+        return web.json_response(APIResponse.success(message_data))
+
+    @authorize(Permission.READ_MESSAGES)
+    async def get_message_details(self, request: Request):
+        """
+        ---
+        summary: Get Message Details
+        description: Retrieves details of a specific message by ID.
+        tags:
+          - Messaging
+        parameters:
+          - in: path
+            name: message_id
+            type: string
+            required: true
+            description: ID of the message to retrieve.
+        responses:
+          200:
+            description: Message details
+          404: {description: Message not found}
+          403: {description: Permission denied}
+        """
+        persistence_manager: PersistenceManager = request.app['persistence_manager']
+        message_id = request.match_info['message_id']
+        
+        # This currently relies on backend being able to query by message_id directly
+        # If not, you might need to iterate through messages or implement specific index.
+        # For simplicity, assuming a method exists:
+        message = await persistence_manager.backend.load_message_by_id(message_id) 
+        
+        if not message:
+            return web.json_response(APIResponse.error(f"Message with ID {message_id} not found"), status=404)
+        
+        message_data = asdict(message)
+        if isinstance(message_data.get('timestamp'), datetime):
+            message_data['timestamp'] = message_data['timestamp'].isoformat()
+        if isinstance(message_data.get('message_type'), Enum):
+            message_data['message_type'] = message_data['message_type'].value
+
+        return web.json_response(APIResponse.success(message_data))
+
+
+    @authorize(Permission.READ_RESOURCES)
+    async def list_resources(self, request: Request):
+        """
+        ---
+        summary: List Resources
+        description: Retrieves a list of all managed resources.
+        tags:
+          - Resources
+        produces:
+          - application/json
+        responses:
+          200:
+            description: List of resources
+        """
+        framework: AgentFramework = request.app['framework']
+        resources = framework.resource_manager.list_all_resources()
+        resource_data = [asdict(r) for r in resources]
+        # Convert Enum and datetime objects to strings
+        for res in resource_data:
+            if 'type' in res and isinstance(res['type'], Enum):
+                res['type'] = res['type'].value
+            if 'created_at' in res and isinstance(res['created_at'], datetime):
+                res['created_at'] = res['created_at'].isoformat()
+            if 'last_updated' in res and isinstance(res['last_updated'], datetime):
+                res['last_updated'] = res['last_updated'].isoformat()
+        return web.json_response(APIResponse.success(resource_data))
+
+    @authorize(Permission.WRITE_RESOURCES)
+    async def create_resource(self, request: Request):
+        """
+        ---
+        summary: Create Resource
+        description: Creates a new managed resource.
+        tags:
+          - Resources
+        parameters:
+          - in: body
+            name: body
+            schema:
+              type: object
+              required:
+                - type
+                - name
+                - namespace
+                - data
+                - owner_agent_id
+              properties:
+                type: {type: string, enum: [code, infra, workflow, ui, data, test, security, release]}
+                name: {type: string}
+                namespace: {type: string}
+                data: {type: object, description: JSON data of the resource}
+                owner_agent_id: {type: string}
+                description: {type: string}
+        responses:
+          200: {description: Resource created successfully}
+          400: {description: Invalid input}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        data = await request.json()
+
+        resource_type_str = data.get("type")
+        name = data.get("name")
+        namespace = data.get("namespace")
+        resource_data_payload = data.get("data")
+        owner_agent_id = data.get("owner_agent_id")
+        description = data.get("description", "")
+
+        if not all([resource_type_str, name, namespace, resource_data_payload, owner_agent_id]):
+            return web.json_response(APIResponse.error("Type, name, namespace, data, and owner_agent_id are required"), status=400)
+        
+        try:
+            resource_type = ResourceType(resource_type_str.lower())
+        except ValueError:
+            return web.json_response(APIResponse.error("Invalid resource type"), status=400)
+
+        new_resource = AgentResource(
+            type=resource_type,
+            name=name,
+            namespace=namespace,
+            data=resource_data_payload,
+            owner_agent_id=owner_agent_id,
+            description=description
+        )
+        
+        await framework.resource_manager.create_resource(new_resource)
+        return web.json_response(APIResponse.success({"id": new_resource.id, "name": new_resource.name}, "Resource created"))
+
+    @authorize(Permission.READ_RESOURCES)
+    async def get_resource_details(self, request: Request):
+        """
+        ---
+        summary: Get Resource Details
+        description: Retrieves details of a specific resource by ID.
+        tags:
+          - Resources
+        parameters:
+          - in: path
+            name: resource_id
+            type: string
+            required: true
+            description: ID of the resource to retrieve.
+        responses:
+          200: {description: Resource details}
+          404: {description: Resource not found}
+          403: {description: Permission denied}
+        """
+        framework: AgentFramework = request.app['framework']
+        resource_id = request.match_info['resource_id']
+        
+        resource = framework.resource_manager.get_resource(resource_id)
+        if not resource:
+            return web.json_response(APIResponse.error(f"Resource with ID {resource_id} not found"), status=404)
+        
+        resource_data = asdict(resource)
+        if 'type' in resource_data and isinstance(resource_data['type'], Enum):
+            resource_data['type'] = resource_data['type'].value
+        if 'created_at' in resource_data and isinstance(resource_data['created_at'], datetime):
+            resource_data['created_at'] = resource_data['created_at'].isoformat()
+        if 'last_updated' in resource_data and isinstance(resource_data['last_updated'], datetime):
+            resource_data['last_updated'] = resource_data['last_updated'].isoformat()
+            
+        return web.json_response(APIResponse.success(resource_data))
+
+    @authorize(Permission.WRITE_RESOURCES)
+    async def update_resource(self, request: Request):
+        """
+        ---
+        summary: Update Resource
+        description: Updates an existing managed resource by ID.
+        tags:
+          - Resources
+        parameters:
+          - in: path
+            name: resource_id
+            type: string
+            required: true
+            description: ID of the resource to update.
+          - in: body
+            name: body
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                namespace: {type: string}
+                data: {type: object, description: Updated JSON data of the resource}
+                description: {type: string}
+        responses:
+          200: {description: Resource updated successfully}
+          400: {description: Invalid input}
+          403: {description: Permission denied}
+          404: {description: Resource not found}
+        """
+        framework: AgentFramework = request.app['framework']
+        resource_id = request.match_info['resource_id']
+        data = await request.json()
+
+        resource = framework.resource_manager.get_resource(resource_id)
+        if not resource:
+            return web.json_response(APIResponse.error(f"Resource with ID {resource_id} not found"), status=404)
+        
+        if 'name' in data:
+            resource.name = data['name']
+        if 'namespace' in data:
+            resource.namespace = data['namespace']
+        if 'data' in data:
+            resource.data = data['data']
+        if 'description' in data:
+            resource.description = data['description']
+        
+        resource.last_updated = datetime.now()
+        
+        await framework.resource_manager.update_resource(resource) # Assuming update_resource method exists
+        return web.json_response(APIResponse.success({"id": resource.id, "name": resource.name}, "Resource updated"))
+
+    @authorize(Permission.WRITE_RESOURCES) # Or DELETE_RESOURCES if specific
+    async def delete_resource(self, request: Request):
+        """
+        ---
+        summary: Delete Resource
+        description: Deletes a managed resource by ID.
+        tags:
+          - Resources
+        parameters:
+          - in: path
+            name: resource_id
+            type: string
+            required: true
+            description: ID of the resource to delete.
+        responses:
+          200: {description: Resource deleted successfully}
+          403: {description: Permission denied}
+          404: {description: Resource not found}
+        """
+        framework: AgentFramework = request.app['framework']
+        resource_id = request.match_info['resource_id']
+        
+        resource = framework.resource_manager.get_resource(resource_id)
+        if not resource:
+            return web.json_response(APIResponse.error(f"Resource with ID {resource_id} not found"), status=404)
+        
+        framework.resource_manager.delete_resource(resource_id)
+        return web.json_response(APIResponse.success(None, f"Resource {resource_id} deleted"))
+
+    @authorize(Permission.MONITOR_SYSTEM)
+    async def get_metrics(self, request: Request):
+        """
+        ---
+        summary: Get System Metrics
+        description: Retrieves real-time system metrics.
+        tags:
+          - Monitoring
+        produces:
+          - application/json
+        responses:
+          200:
+            description: System metrics data
+        """
+        metrics_collector: MetricsCollector = request.app['metrics_collector']
+        metrics = metrics_collector.export_metrics()
+        
+        # Convert Metric objects to dicts and Enum/datetime to strings
+        serializable_metrics = {}
+        for key, metric in metrics.items():
+            metric_data = asdict(metric)
+            if 'type' in metric_data and isinstance(metric_data['type'], Enum):
+                metric_data['type'] = metric_data['type'].value
+            if 'timestamp' in metric_data and isinstance(metric_data['timestamp'], datetime):
+                metric_data['timestamp'] = metric_data['timestamp'].isoformat()
+            serializable_metrics[key] = metric_data
+            
+        return web.json_response(APIResponse.success(serializable_metrics))
+
+    async def websocket_handler(self, request: Request):
+        """
+        ---
+        summary: WebSocket Event Stream
+        description: Establishes a WebSocket connection for real-time system events and logs.
+        tags:
+          - System
+          - Real-time
+        responses:
+          101: {description: WebSocket upgrade successful}
+        """
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        
+        self.logger.info("WebSocket connection established.")
+        self.app['websockets'].append(ws) # Store reference to active websockets
+        
+        # Initial data push (e.g., current metrics, agent list)
+        await ws.send_json(APIResponse.success({"type": "initial_data", "metrics": self.metrics_collector.export_metrics()}))
+        await ws.send_json(APIResponse.success({"type": "initial_data", "agents": [asdict(a) for a in self.framework.registry.list_all_agents()]}))
+
+        try:
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    # Handle incoming messages from WebSocket clients if needed (e.g., commands)
+                    self.logger.info(f"Received WS message: {msg.json()}")
+                    # Echo back for demo
+                    # await ws.send_json(APIResponse.success({"echo": msg.json()}))
+                elif msg.type == WSMsgType.ERROR:
+                    self.logger.error(f"WebSocket connection closed with exception: {ws.exception()}")
+        except Exception as e:
+            self.logger.error(f"WebSocket error: {e}")
         finally:
-            await runner.cleanup()
-            logger.info("API Server stopped.")
+            self.logger.info("WebSocket connection closed.")
+            self.app['websockets'].remove(ws) # Remove reference
+
+# Example usage (for direct execution during development)
+async def main():
+    logging.basicConfig(level=logging.INFO)
+    
+    print("🚀 Starting API Demo")
+    print("="*50)
+    
+    # Crear framework
+    framework = AgentFramework()
+    await framework.start()
+    
+    # Iniciar Seguridad
+    security_manager = SecurityManager(framework)
+    await security_manager.initialize()
+
+    # Iniciar Persistencia
+    persistence_manager = PersistenceFactory.create_persistence_manager(
+        framework, PersistenceBackend.SQLITE, "api_demo.db"
+    )
+    await persistence_manager.initialize()
+
+    # Crear algunos agentes para demo
+    strategist = ExtendedAgentFactory.create_agent("agent.planning.strategist", "strategist", framework)
+    generator = ExtendedAgentFactory.create_agent("agent.build.code.generator", "generator", framework)
+    
+    await strategist.start()
+    await generator.start()
+    
+    # Crear servidor API
+    api_server = FrameworkAPIServer(framework, security_manager, persistence_manager, host="localhost", port=8000)
+    runner = await api_server.start()
+    
+    print(f"\n✅ API server running with {len(framework.registry.list_all_agents())} agents")
+    print("\nAvailable endpoints:")
+    print("• POST /api/auth/login - Authentication")
+    print("• GET  /api/agents - List agents")
+    print("• POST /api/agents - Create agent")
+    print("• GET  /api/health - Health check")
+    print("• GET  /api/metrics - System metrics")
+    print("\nTest the API:")
+    print("curl http://localhost:8000/api/health")
+    print("\nPress Ctrl+C to stop...")
+    
+    try:
+        # Mantener servidor corriendo
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\n\n🛑 Stopping API server...")
+        
+    finally:
+        await framework.stop()
+        await persistence_manager.close()
+        await runner.cleanup() # Clean up aiohttp runner
 
 if __name__ == "__main__":
-    # Example usage:
-    async def main():
-        # Initialize a dummy framework for the API server to run
-        # In a real application, you would initialize your actual AgentFramework
-        class DummyAgentFramework(AgentFramework):
-            def __init__(self):
-                super().__init__()
-                logging.info("DummyAgentFramework initialized.")
-
-            async def start(self):
-                logging.info("DummyAgentFramework starting...")
-                # Add any startup logic for the framework here
-                pass
-
-            async def stop(self):
-                logging.info("DummyAgentFramework stopping...")
-                # Add any cleanup logic for the framework here
-                pass
-
-            # Mocking registry and resource_manager for API handlers
-            class DummyRegistry:
-                def list_all_agents(self):
-                    return [] # Return empty list for demo
-                def get_agent(self, agent_id: str):
-                    return None
-                def remove_agent(self, agent_id: str):
-                    logging.info(f"Agent {agent_id} removed from dummy registry.")
-
-            class DummyResourceManager:
-                def find_resources_by_owner(self, owner_id: str):
-                    return []
-                async def get_resource(self, resource_id: str):
-                    return None
-
-            @property
-            def registry(self):
-                if not hasattr(self, '_registry'):
-                    self._registry = self.DummyRegistry()
-                return self._registry
-
-            @property
-            def resource_manager(self):
-                if not hasattr(self, '_resource_manager'):
-                    self._resource_manager = self.DummyResourceManager()
-                return self._resource_manager
-
-        framework_instance = DummyAgentFramework()
-        await framework_instance.start()
-
-        # Instantiate and start the API server
-        api_server = FrameworkAPIServer(framework_instance, host="0.0.0.0", port=8000)
-        await api_server.start()
-        await framework_instance.stop()
-
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Server demo interrupted by user.")
+    asyncio.run(main())

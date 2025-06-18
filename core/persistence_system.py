@@ -15,10 +15,13 @@ import pickle
 import logging
 from pathlib import Path
 
-from core.autonomous_agent_framework import AgentMessage, AgentResource, BaseAgent, AgentStatus
+# Importaciones actualizadas
+from core.models import AgentMessage, AgentResource, AgentStatus # <-- CAMBIO AQUI
+from core.autonomous_agent_framework import BaseAgent, AgentFramework # <-- AGREGADO DE BaseAgent y Framework
 
+# ================================\
 # PERSISTENCE INTERFACES
-
+# ================================\
 
 class PersistenceBackend(Enum):
     """Tipos de backend de persistencia"""
@@ -49,1007 +52,629 @@ class PersistenceInterface(ABC):
         
     @abstractmethod
     async def save_agent_state(self, agent: BaseAgent) -> bool:
-        """Guardar estado de un agente"""
+        """Guardar el estado de un agente individual (no la instancia completa)"""
         pass
         
     @abstractmethod
     async def load_agent_state(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """Cargar estado de un agente"""
+        """Cargar el estado de un agente por su ID"""
         pass
-        
+
     @abstractmethod
     async def save_message(self, message: AgentMessage) -> bool:
-        """Guardar mensaje"""
+        """Guardar un mensaje en el historial"""
         pass
-        
+
     @abstractmethod
-    async def load_messages(self, agent_id: str, limit: int = 100) -> List[AgentMessage]:
-        """Cargar mensajes de un agente"""
+    async def load_messages(self, agent_id: Optional[str] = None, limit: int = 100) -> List[AgentMessage]:
+        """Cargar mensajes, opcionalmente filtrados por agente"""
         pass
-        
+
     @abstractmethod
     async def save_resource(self, resource: AgentResource) -> bool:
-        """Guardar recurso"""
+        """Guardar un recurso"""
         pass
-        
+
     @abstractmethod
     async def load_resource(self, resource_id: str) -> Optional[AgentResource]:
-        """Cargar recurso"""
+        """Cargar un recurso por su ID"""
         pass
-        
+
     @abstractmethod
-    async def save_framework_state(self, state: Dict[str, Any]) -> bool:
-        """Guardar estado del framework"""
+    async def delete_resource(self, resource_id: str) -> bool:
+        """Eliminar un recurso"""
         pass
-        
+
     @abstractmethod
-    async def load_framework_state(self) -> Optional[Dict[str, Any]]:
-        """Cargar estado del framework"""
+    async def save_full_framework_state(self, framework: "AgentFramework") -> bool:
+        """Guardar el estado completo del framework (agentes, recursos, etc.)"""
         pass
-        
+
     @abstractmethod
-    async def cleanup(self, older_than_days: int = 30) -> bool:
+    async def load_full_framework_state(self, framework: "AgentFramework") -> bool:
+        """Cargar el estado completo del framework"""
+        pass
+
+    @abstractmethod
+    async def cleanup(self, older_than_days: int = 30) -> Dict[str, int]:
         """Limpiar datos antiguos"""
         pass
-        
+
     @abstractmethod
-    async def close(self) -> bool:
-        """Cerrar conexiones"""
+    async def close(self) -> None:
+        """Cerrar la conexión/recursos de persistencia"""
         pass
 
 
-# SQLITE PERSISTENCE IMPLEMENTATION
-
+# ================================\
+# SQLITE IMPLEMENTATION
+# ================================\
 
 class SQLitePersistence(PersistenceInterface):
+    """Implementación de persistencia usando SQLite."""
     def __init__(self):
-        self.db_path = None
-        self.connection = None
+        self.db_path: Path = Path("framework.db")
+        self.config: Optional[PersistenceConfig] = None
+        self.conn: Optional[aiosqlite.Connection] = None
         self.logger = logging.getLogger("SQLitePersistence")
-        
+        self.logger.info("SQLitePersistence backend initialized.")
+
     async def initialize(self, config: PersistenceConfig) -> bool:
-        """Inicializar base de datos SQLite"""
-        self.db_path = config.connection_string
-        
+        self.config = config
+        self.db_path = Path(config.connection_string)
         try:
-            # Crear tablas
-            async with aiosqlite.connect(self.db_path) as db:
-                await self._create_tables(db)
-                await db.commit()
-            
-            self.logger.info(f"SQLite persistence initialized: {self.db_path}")
+            self.conn = await aiosqlite.connect(self.db_path)
+            await self._create_tables()
+            self.logger.info(f"SQLite database connected and tables ensured at {self.db_path}")
             return True
-            
         except Exception as e:
-            self.logger.error(f"Failed to initialize SQLite persistence: {e}")
+            self.logger.error(f"Failed to initialize SQLite persistence at {self.db_path}: {e}")
             return False
-            
-    async def _create_tables(self, db: aiosqlite.Connection):
-        """Crear tablas de la base de datos"""
-        
-        # Tabla de agentes
-        await db.execute("""
+
+    async def _create_tables(self):
+        """Crea las tablas necesarias si no existen."""
+        if not self.conn:
+            raise RuntimeError("Database connection not established.")
+
+        await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS agents (
                 id TEXT PRIMARY KEY,
-                namespace TEXT NOT NULL,
-                name TEXT NOT NULL,
-                status TEXT NOT NULL,
-                metadata TEXT,
-                state_data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                namespace TEXT,
+                name TEXT,
+                status TEXT,
+                last_heartbeat TEXT,
+                state_data BLOB,
+                capabilities BLOB
             )
         """)
-        
-        # Tabla de mensajes
-        await db.execute("""
+        await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
-                sender_id TEXT NOT NULL,
-                receiver_id TEXT NOT NULL,
-                message_type TEXT NOT NULL,
-                action TEXT NOT NULL,
-                payload TEXT,
+                sender_id TEXT,
+                receiver_id TEXT,
+                message_type TEXT,
+                payload BLOB,
+                timestamp TEXT,
                 correlation_id TEXT,
-                response_required BOOLEAN,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                status TEXT,
+                error TEXT
             )
         """)
-        
-        # Tabla de recursos
-        await db.execute("""
+        await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS resources (
                 id TEXT PRIMARY KEY,
-                type TEXT NOT NULL,
-                name TEXT NOT NULL,
-                namespace TEXT NOT NULL,
-                data TEXT,
-                owner_agent_id TEXT NOT NULL,
-                metadata TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                type TEXT,
+                name TEXT,
+                namespace TEXT,
+                version TEXT,
+                data BLOB,
+                created_at TEXT,
+                last_modified TEXT,
+                owner_agent_id TEXT,
+                access_permissions BLOB,
+                checksum TEXT
             )
         """)
-        
-        # Tabla de estado del framework
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS framework_state (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Índices para performance
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id)")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id)")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_resources_owner ON resources(owner_agent_id)")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(type)")
-        
+        await self.conn.commit()
+
     async def save_agent_state(self, agent: BaseAgent) -> bool:
-        """Guardar estado de un agente"""
+        if not self.conn: return False
         try:
-            # Serializar estado del agente
-            state_data = {
-                "capabilities": [asdict(cap) for cap in agent.capabilities],
-                "metadata": agent.metadata,
-                "created_at": agent.created_at.isoformat(),
-                "last_heartbeat": agent.last_heartbeat.isoformat()
-            }
-            
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("""
-                    INSERT OR REPLACE INTO agents 
-                    (id, namespace, name, status, metadata, state_data, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    agent.id,
-                    agent.namespace,
-                    agent.name,
-                    agent.status.value,
-                    json.dumps(agent.metadata),
-                    json.dumps(state_data)
-                ))
-                await db.commit()
-                
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to save agent state {agent.id}: {e}")
-            return False
-            
-    async def load_agent_state(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """Cargar estado de un agente"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                db.row_factory = aiosqlite.Row
-                cursor = await db.execute(
-                    "SELECT * FROM agents WHERE id = ?", (agent_id,)
-                )
-                row = await cursor.fetchone()
-                
-                if row:
-                    return {
-                        "id": row["id"],
-                        "namespace": row["namespace"],
-                        "name": row["name"],
-                        "status": row["status"],
-                        "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
-                        "state_data": json.loads(row["state_data"]) if row["state_data"] else {},
-                        "created_at": row["created_at"],
-                        "updated_at": row["updated_at"]
-                    }
-                    
-        except Exception as e:
-            self.logger.error(f"Failed to load agent state {agent_id}: {e}")
-            
-        return None
-        
-    async def save_message(self, message: AgentMessage) -> bool:
-        """Guardar mensaje"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("""
-                    INSERT INTO messages 
-                    (id, sender_id, receiver_id, message_type, action, payload, 
-                     correlation_id, response_required, timestamp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    message.id,
-                    message.sender_id,
-                    message.receiver_id,
-                    message.message_type.value,
-                    message.action,
-                    json.dumps(message.payload),
-                    message.correlation_id,
-                    message.response_required,
-                    message.timestamp.isoformat()
-                ))
-                await db.commit()
-                
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to save message {message.id}: {e}")
-            return False
-            
-    async def load_messages(self, agent_id: str, limit: int = 100) -> List[AgentMessage]:
-        """Cargar mensajes de un agente"""
-        messages = []
-        
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                db.row_factory = aiosqlite.Row
-                cursor = await db.execute("""
-                    SELECT * FROM messages 
-                    WHERE sender_id = ? OR receiver_id = ?
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """, (agent_id, agent_id, limit))
-                
-                rows = await cursor.fetchall()
-                
-                for row in rows:
-                    from core.autonomous_agent_framework import MessageType
-                    message = AgentMessage(
-                        id=row["id"],
-                        sender_id=row["sender_id"],
-                        receiver_id=row["receiver_id"],
-                        message_type=MessageType(row["message_type"]),
-                        action=row["action"],
-                        payload=json.loads(row["payload"]) if row["payload"] else {},
-                        correlation_id=row["correlation_id"],
-                        response_required=bool(row["response_required"]),
-                        timestamp=datetime.fromisoformat(row["timestamp"])
-                    )
-                    messages.append(message)
-                    
-        except Exception as e:
-            self.logger.error(f"Failed to load messages for agent {agent_id}: {e}")
-            
-        return messages
-        
-    async def save_resource(self, resource: AgentResource) -> bool:
-        """Guardar recurso"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute("""
-                    INSERT OR REPLACE INTO resources 
-                    (id, type, name, namespace, data, owner_agent_id, metadata, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    resource.id,
-                    resource.type.value,
-                    resource.name,
-                    resource.namespace,
-                    json.dumps(resource.data),
-                    resource.owner_agent_id,
-                    json.dumps(resource.metadata)
-                ))
-                await db.commit()
-                
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to save resource {resource.id}: {e}")
-            return False
-            
-    async def load_resource(self, resource_id: str) -> Optional[AgentResource]:
-        """Cargar recurso"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                db.row_factory = aiosqlite.Row
-                cursor = await db.execute(
-                    "SELECT * FROM resources WHERE id = ?", (resource_id,)
-                )
-                row = await cursor.fetchone()
-                
-                if row:
-                    from core.autonomous_agent_framework import ResourceType
-                    return AgentResource(
-                        id=row["id"],
-                        type=ResourceType(row["type"]),
-                        name=row["name"],
-                        namespace=row["namespace"],
-                        data=json.loads(row["data"]) if row["data"] else {},
-                        owner_agent_id=row["owner_agent_id"],
-                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
-                        created_at=datetime.fromisoformat(row["created_at"]),
-                        updated_at=datetime.fromisoformat(row["updated_at"])
-                    )
-                    
-        except Exception as e:
-            self.logger.error(f"Failed to load resource {resource_id}: {e}")
-            
-        return None
-        
-    async def save_framework_state(self, state: Dict[str, Any]) -> bool:
-        """Guardar estado del framework"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                for key, value in state.items():
-                    await db.execute("""
-                        INSERT OR REPLACE INTO framework_state (key, value, updated_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                    """, (key, json.dumps(value)))
-                await db.commit()
-                
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to save framework state: {e}")
-            return False
-            
-    async def load_framework_state(self) -> Optional[Dict[str, Any]]:
-        """Cargar estado del framework"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                db.row_factory = aiosqlite.Row
-                cursor = await db.execute("SELECT key, value FROM framework_state")
-                rows = await cursor.fetchall()
-                
-                state = {}
-                for row in rows:
-                    state[row["key"]] = json.loads(row["value"])
-                    
-                return state if state else None
-                
-        except Exception as e:
-            self.logger.error(f"Failed to load framework state: {e}")
-            
-        return None
-        
-    async def cleanup(self, older_than_days: int = 30) -> bool:
-        """Limpiar datos antiguos"""
-        try:
-            cutoff_date = datetime.now().isoformat().split('T')[0]
-            # En SQLite, restar días de fecha actual
-            
-            async with aiosqlite.connect(self.db_path) as db:
-                # Limpiar mensajes antiguos
-                await db.execute("""
-                    DELETE FROM messages 
-                    WHERE date(timestamp) < date('now', '-{} days')
-                """.format(older_than_days))
-                
-                # Limpiar agentes inactivos
-                await db.execute("""
-                    DELETE FROM agents 
-                    WHERE status = 'terminated' 
-                    AND date(updated_at) < date('now', '-{} days')
-                """.format(older_than_days))
-                
-                await db.commit()
-                
-            self.logger.info(f"Cleanup completed: removed data older than {older_than_days} days")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to cleanup old data: {e}")
-            return False
-            
-    async def close(self) -> bool:
-        """Cerrar conexiones"""
-        # SQLite se cierra automáticamente con context managers
-        return True
+            # Serializar las capacidades de forma sencilla, posiblemente a JSON si son serializables
+            # o a una representación simplificada. Para esta demo, lo haremos un JSON de sus nombres.
+            capabilities_data = json.dumps([c.name for c in agent.capabilities]) if agent.capabilities else "[]"
 
+            # Serializar la instancia completa del agente (incluyendo atributos adicionales)
+            # Esto es un ejemplo. En un sistema de prod, se guardarían atributos clave.
+            # NO se guarda toda la instancia si contiene referencias circulares o objetos complejos.
+            # Para la demo, lo haremos con pickle, pero es inestable para cambios de clase.
+            # La mejor práctica es guardar solo los datos relevantes para reconstruir el estado.
+            # Aquí asumimos que los atributos serializables son 'id', 'namespace', 'name', 'status', 'last_heartbeat'
+            # y que el resto de datos de estado relevantes deberían estar en un `state_data` dedicado.
 
-# JSON FILE PERSISTENCE
-
-
-class JSONFilePersistence(PersistenceInterface):
-    def __init__(self):
-        self.data_dir = None
-        self.data = {
-            "agents": {},
-            "messages": {},
-            "resources": {},
-            "framework_state": {}
-        }
-        self.logger = logging.getLogger("JSONFilePersistence")
-        
-    async def initialize(self, config: PersistenceConfig) -> bool:
-        """Inicializar persistencia con archivos JSON"""
-        self.data_dir = Path(config.connection_string)
-        self.data_dir.mkdir(exist_ok=True)
-        
-        # Cargar datos existentes
-        await self._load_all_data()
-        self.logger.info(f"JSON File persistence initialized: {self.data_dir}")
-        return True
-        
-    async def _load_all_data(self):
-        """Cargar todos los datos desde archivos"""
-        for data_type in self.data.keys():
-            file_path = self.data_dir / f"{data_type}.json"
-            if file_path.exists():
-                try:
-                    with open(file_path, 'r') as f:
-                        self.data[data_type] = json.load(f)
-                except Exception as e:
-                    self.logger.error(f"Failed to load {data_type}.json: {e}")
-                    
-    async def _save_data_type(self, data_type: str):
-        """Guardar un tipo específico de datos"""
-        file_path = self.data_dir / f"{data_type}.json"
-        try:
-            with open(file_path, 'w') as f:
-                json.dump(self.data[data_type], f, indent=2)
-        except Exception as e:
-            self.logger.error(f"Failed to save {data_type}.json: {e}")
-            
-    async def save_agent_state(self, agent: BaseAgent) -> bool:
-        """Guardar estado de un agente"""
-        try:
-            agent_data = {
+            # Crear un diccionario con los atributos serializables del agente
+            agent_data_to_save = {
                 "id": agent.id,
                 "namespace": agent.namespace,
                 "name": agent.name,
                 "status": agent.status.value,
-                "metadata": agent.metadata,
-                "capabilities": [asdict(cap) for cap in agent.capabilities],
-                "created_at": agent.created_at.isoformat(),
                 "last_heartbeat": agent.last_heartbeat.isoformat(),
-                "updated_at": datetime.now().isoformat()
+                # Aquí se añadirían otros atributos de estado del agente que sean relevantes.
+                # Por ejemplo, si un agente tiene un 'memory' o 'knowledge_base'
+                "custom_state": {} # Placeholder para estados específicos del agente
             }
-            
-            self.data["agents"][agent.id] = agent_data
-            await self._save_data_type("agents")
+            state_data_blob = pickle.dumps(agent_data_to_save) # Usar pickle para la demo, pero JSON es preferible para portabilidad
+
+            await self.conn.execute(
+                """
+                INSERT OR REPLACE INTO agents 
+                (id, namespace, name, status, last_heartbeat, state_data, capabilities) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (agent.id, agent.namespace, agent.name, agent.status.value, 
+                 agent.last_heartbeat.isoformat(), state_data_blob, capabilities_data)
+            )
+            await self.conn.commit()
+            self.logger.debug(f"Agent state {agent.id} saved.")
             return True
-            
         except Exception as e:
             self.logger.error(f"Failed to save agent state {agent.id}: {e}")
             return False
-            
+
     async def load_agent_state(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """Cargar estado de un agente"""
-        return self.data["agents"].get(agent_id)
-        
-    async def save_message(self, message: AgentMessage) -> bool:
-        """Guardar mensaje"""
+        if not self.conn: return None
         try:
-            message_data = {
-                "id": message.id,
-                "sender_id": message.sender_id,
-                "receiver_id": message.receiver_id,
-                "message_type": message.message_type.value,
-                "action": message.action,
-                "payload": message.payload,
-                "correlation_id": message.correlation_id,
-                "response_required": message.response_required,
-                "timestamp": message.timestamp.isoformat()
-            }
-            
-            self.data["messages"][message.id] = message_data
-            await self._save_data_type("messages")
+            cursor = await self.conn.execute("SELECT state_data FROM agents WHERE id = ?", (agent_id,))
+            row = await cursor.fetchone()
+            if row and row[0]:
+                state_data_blob = row[0]
+                # Deserializar con pickle
+                agent_data = pickle.loads(state_data_blob)
+                self.logger.debug(f"Agent state {agent_id} loaded.")
+                return agent_data
+            self.logger.debug(f"Agent state for {agent_id} not found.")
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to load agent state {agent_id}: {e}")
+            return None
+
+    async def save_message(self, message: AgentMessage) -> bool:
+        if not self.conn: return False
+        try:
+            await self.conn.execute(
+                """
+                INSERT INTO messages 
+                (id, sender_id, receiver_id, message_type, payload, timestamp, correlation_id, status, error) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (message.id, message.sender_id, message.receiver_id, message.message_type.value,
+                 json.dumps(message.payload), message.timestamp.isoformat(), message.correlation_id,
+                 message.status, message.error)
+            )
+            await self.conn.commit()
+            self.logger.debug(f"Message {message.id} saved.")
             return True
-            
         except Exception as e:
             self.logger.error(f"Failed to save message {message.id}: {e}")
             return False
-            
-    async def load_messages(self, agent_id: str, limit: int = 100) -> List[AgentMessage]:
-        """Cargar mensajes de un agente"""
+
+    async def load_messages(self, agent_id: Optional[str] = None, limit: int = 100) -> List[AgentMessage]:
+        if not self.conn: return []
         messages = []
-        
         try:
-            # Filtrar mensajes del agente y ordenar por timestamp
-            agent_messages = [
-                msg for msg in self.data["messages"].values()
-                if msg["sender_id"] == agent_id or msg["receiver_id"] == agent_id
-            ]
-            
-            # Ordenar por timestamp descendente y limitar
-            agent_messages.sort(key=lambda x: x["timestamp"], reverse=True)
-            agent_messages = agent_messages[:limit]
-            
-            # Convertir a objetos AgentMessage
-            for msg_data in agent_messages:
-                from core.autonomous_agent_framework import MessageType
-                message = AgentMessage(
-                    id=msg_data["id"],
-                    sender_id=msg_data["sender_id"],
-                    receiver_id=msg_data["receiver_id"],
-                    message_type=MessageType(msg_data["message_type"]),
-                    action=msg_data["action"],
-                    payload=msg_data["payload"],
-                    correlation_id=msg_data["correlation_id"],
-                    response_required=msg_data["response_required"],
-                    timestamp=datetime.fromisoformat(msg_data["timestamp"])
-                )
-                messages.append(message)
-                
+            query = "SELECT * FROM messages"
+            params = ()
+            if agent_id:
+                query += " WHERE sender_id = ? OR receiver_id = ?"
+                params = (agent_id, agent_id)
+            query += " ORDER BY timestamp DESC LIMIT ?"
+            params += (limit,)
+
+            cursor = await self.conn.execute(query, params)
+            rows = await cursor.fetchall()
+            for row in rows:
+                try:
+                    msg = AgentMessage(
+                        id=row[0],
+                        sender_id=row[1],
+                        receiver_id=row[2],
+                        message_type=MessageType(row[3]),
+                        payload=json.loads(row[4]),
+                        timestamp=datetime.fromisoformat(row[5]),
+                        correlation_id=row[6],
+                        status=row[7],
+                        error=row[8]
+                    )
+                    messages.append(msg)
+                except Exception as e:
+                    self.logger.error(f"Error loading message from DB: {row} - {e}")
+            self.logger.debug(f"Loaded {len(messages)} messages.")
+            return messages
         except Exception as e:
-            self.logger.error(f"Failed to load messages for agent {agent_id}: {e}")
-            
-        return messages
-        
+            self.logger.error(f"Failed to load messages: {e}")
+            return []
+
     async def save_resource(self, resource: AgentResource) -> bool:
-        """Guardar recurso"""
+        if not self.conn: return False
         try:
-            resource_data = {
-                "id": resource.id,
-                "type": resource.type.value,
-                "name": resource.name,
-                "namespace": resource.namespace,
-                "data": resource.data,
-                "owner_agent_id": resource.owner_agent_id,
-                "metadata": resource.metadata,
-                "created_at": resource.created_at.isoformat(),
-                "updated_at": resource.updated_at.isoformat()
-            }
-            
-            self.data["resources"][resource.id] = resource_data
-            await self._save_data_type("resources")
+            await self.conn.execute(
+                """
+                INSERT OR REPLACE INTO resources 
+                (id, type, name, namespace, version, data, created_at, last_modified, owner_agent_id, access_permissions, checksum) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (resource.id, resource.type.value, resource.name, resource.namespace, resource.version,
+                 pickle.dumps(resource.data), resource.created_at.isoformat(), resource.last_modified.isoformat(),
+                 resource.owner_agent_id, json.dumps(resource.access_permissions), resource.checksum)
+            )
+            await self.conn.commit()
+            self.logger.debug(f"Resource {resource.id} saved.")
             return True
-            
         except Exception as e:
             self.logger.error(f"Failed to save resource {resource.id}: {e}")
             return False
-            
+
     async def load_resource(self, resource_id: str) -> Optional[AgentResource]:
-        """Cargar recurso"""
+        if not self.conn: return None
         try:
-            resource_data = self.data["resources"].get(resource_id)
-            if resource_data:
-                from core.autonomous_agent_framework import ResourceType
-                return AgentResource(
-                    id=resource_data["id"],
-                    type=ResourceType(resource_data["type"]),
-                    name=resource_data["name"],
-                    namespace=resource_data["namespace"],
-                    data=resource_data["data"],
-                    owner_agent_id=resource_data["owner_agent_id"],
-                    metadata=resource_data["metadata"],
-                    created_at=datetime.fromisoformat(resource_data["created_at"]),
-                    updated_at=datetime.fromisoformat(resource_data["updated_at"])
+            cursor = await self.conn.execute("SELECT * FROM resources WHERE id = ?", (resource_id,))
+            row = await cursor.fetchone()
+            if row:
+                resource = AgentResource(
+                    id=row[0],
+                    type=ResourceType(row[1]),
+                    name=row[2],
+                    namespace=row[3],
+                    version=row[4],
+                    data=pickle.loads(row[5]),
+                    created_at=datetime.fromisoformat(row[6]),
+                    last_modified=datetime.fromisoformat(row[7]),
+                    owner_agent_id=row[8],
+                    access_permissions=json.loads(row[9]),
+                    checksum=row[10]
                 )
+                self.logger.debug(f"Resource {resource_id} loaded.")
+                return resource
+            self.logger.debug(f"Resource {resource_id} not found.")
+            return None
         except Exception as e:
             self.logger.error(f"Failed to load resource {resource_id}: {e}")
-            
-        return None
-        
-    async def save_framework_state(self, state: Dict[str, Any]) -> bool:
-        """Guardar estado del framework"""
+            return None
+    
+    async def delete_resource(self, resource_id: str) -> bool:
+        if not self.conn: return False
         try:
-            self.data["framework_state"].update(state)
-            await self._save_data_type("framework_state")
+            await self.conn.execute("DELETE FROM resources WHERE id = ?", (resource_id,))
+            await self.conn.commit()
+            self.logger.debug(f"Resource {resource_id} deleted.")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to save framework state: {e}")
-            return False
-            
-    async def load_framework_state(self) -> Optional[Dict[str, Any]]:
-        """Cargar estado del framework"""
-        return self.data["framework_state"] if self.data["framework_state"] else None
-        
-    async def cleanup(self, older_than_days: int = 30) -> bool:
-        """Limpiar datos antiguos"""
-        try:
-            cutoff_date = datetime.now().timestamp() - (older_than_days * 24 * 3600)
-            
-            # Limpiar mensajes antiguos
-            old_messages = [
-                msg_id for msg_id, msg in self.data["messages"].items()
-                if datetime.fromisoformat(msg["timestamp"]).timestamp() < cutoff_date
-            ]
-            
-            for msg_id in old_messages:
-                del self.data["messages"][msg_id]
-                
-            # Limpiar agentes terminados antiguos
-            old_agents = [
-                agent_id for agent_id, agent in self.data["agents"].items()
-                if (agent["status"] == "terminated" and 
-                    datetime.fromisoformat(agent["updated_at"]).timestamp() < cutoff_date)
-            ]
-            
-            for agent_id in old_agents:
-                del self.data["agents"][agent_id]
-                
-            # Guardar cambios
-            await self._save_data_type("messages")
-            await self._save_data_type("agents")
-            
-            self.logger.info(f"Cleanup completed: removed {len(old_messages)} messages and {len(old_agents)} agents")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to cleanup old data: {e}")
-            return False
-            
-    async def close(self) -> bool:
-        """Cerrar y guardar todos los datos"""
-        try:
-            for data_type in self.data.keys():
-                await self._save_data_type(data_type)
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to close persistence: {e}")
+            self.logger.error(f"Failed to delete resource {resource_id}: {e}")
             return False
 
-
-# PERSISTENCE MANAGER
-
-
-class PersistenceManager:
-    def __init__(self, config: PersistenceConfig):
-        self.config = config
-        self.backend: PersistenceInterface = None
-        self.auto_save_task = None
-        self.logger = logging.getLogger("PersistenceManager")
-        
-    async def initialize(self) -> bool:
-        """Inicializar el sistema de persistencia"""
-        
-        # Crear backend apropiado
-        if self.config.backend == PersistenceBackend.SQLITE:
-            self.backend = SQLitePersistence()
-        elif self.config.backend == PersistenceBackend.JSON_FILE:
-            self.backend = JSONFilePersistence()
-        else:
-            self.logger.error(f"Unsupported persistence backend: {self.config.backend}")
-            return False
-            
-        # Inicializar backend
-        success = await self.backend.initialize(self.config)
-        
-        if success and self.config.auto_save_interval > 0:
-            # Iniciar auto-save
-            self.auto_save_task = asyncio.create_task(self._auto_save_loop())
-            
-        return success
-        
-    async def _auto_save_loop(self):
-        """Loop de auto-guardado"""
-        while True:
-            try:
-                await asyncio.sleep(self.config.auto_save_interval)
-                # Aquí podrías implementar lógica de auto-save específica
-                self.logger.debug("Auto-save triggered")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.error(f"Auto-save error: {e}")
-                
-    async def restore_framework_state(self, framework) -> bool:
-        """Restaurar estado completo del framework"""
-        try:
-            # Cargar estado del framework
-            framework_state = await self.backend.load_framework_state()
-            
-            if framework_state:
-                self.logger.info("Restoring framework state from persistence")
-                
-                # Restaurar agentes si están configurados para auto-start
-                if "agents" in framework_state:
-                    await self._restore_agents(framework, framework_state["agents"])
-                    
-                # Restaurar recursos
-                if "resources" in framework_state:
-                    await self._restore_resources(framework, framework_state["resources"])
-                    
-                return True
-                
-        except Exception as e:
-            self.logger.error(f"Failed to restore framework state: {e}")
-            
-        return False
-        
-    async def _restore_agents(self, framework, agent_states: Dict[str, Any]):
-        """Restaurar agentes desde estado persistido"""
-        from core.specialized_agents import ExtendedAgentFactory # Se asume la existencia de esta clase
-        
-        for agent_id, agent_config in agent_states.items():
-            try:
-                # Cargar estado completo del agente
-                agent_state = await self.backend.load_agent_state(agent_id)
-                
-                if agent_state and agent_state.get("status") != "terminated":
-                    # Recrear agente
-                    namespace = agent_state["namespace"]
-                    name = agent_state["name"]
-                    
-                    if namespace in ExtendedAgentFactory.AGENT_CLASSES:
-                        agent_class = ExtendedAgentFactory.AGENT_CLASSES[namespace]
-                        agent = agent_class(name, framework)
-                        
-                        # Restaurar metadata y estado
-                        agent.metadata = agent_state.get("metadata", {})
-                        
-                        await agent.start()
-                        self.logger.info(f"Restored agent: {agent_id} ({namespace})")
-                        
-            except Exception as e:
-                self.logger.error(f"Failed to restore agent {agent_id}: {e}")
-                
-    async def _restore_resources(self, framework, resource_ids: List[str]):
-        """Restaurar recursos desde estado persistido"""
-        for resource_id in resource_ids:
-            try:
-                resource = await self.backend.load_resource(resource_id)
-                if resource:
-                    await framework.resource_manager.create_resource(resource)
-                    self.logger.info(f"Restored resource: {resource_id}")
-            except Exception as e:
-                self.logger.error(f"Failed to restore resource {resource_id}: {e}")
-                
-    async def save_full_state(self, framework) -> bool:
-        """Guardar estado completo del framework"""
+    async def save_full_framework_state(self, framework: "AgentFramework") -> bool:
+        """
+        Guarda el estado completo del framework.
+        Para un framework real, esto implicaría serializar estados de MessageBus, ResourceManager, etc.
+        Para esta demo, nos enfocamos en agentes y recursos gestionados por ellos.
+        """
+        self.logger.info("Saving full framework state...")
         try:
             # Guardar estado de todos los agentes
-            agents = framework.registry.list_all_agents()
-            for agent in agents:
-                await self.backend.save_agent_state(agent)
-                
-            # Guardar todos los recursos
-            all_resources = []
-            for agent in agents:
-                agent_resources = framework.resource_manager.find_resources_by_owner(agent.id)
-                all_resources.extend(agent_resources)
-                
-            for resource in all_resources:
-                await self.backend.save_resource(resource)
-                
-            # Guardar estado general del framework
-            framework_state = {
-                "agents": {agent.id: {"auto_restart": True} for agent in agents},
-                "resources": [resource.id for resource in all_resources],
-                "last_save": datetime.now().isoformat()
-            }
+            for agent in framework.registry.list_all_agents():
+                await self.save_agent_state(agent)
             
-            await self.backend.save_framework_state(framework_state)
-            
-            self.logger.info(f"Saved complete framework state: {len(agents)} agents, {len(all_resources)} resources")
+            # Guardar estado de todos los recursos
+            for resource in framework.resource_manager.list_all_resources():
+                await self.save_resource(resource)
+
+            # Opcional: guardar mensajes (ya se guardan al enviarse si se llama save_message)
+            self.logger.info("Full framework state saved.")
             return True
         except Exception as e:
             self.logger.error(f"Failed to save full framework state: {e}")
             return False
 
-    async def export_state_to_directory(self, output_dir: Path) -> bool:
-        """Exporta el estado completo del framework a un directorio."""
-        output_dir.mkdir(parents=True, exist_ok=True)
+    async def load_full_framework_state(self, framework: "AgentFramework") -> bool:
+        """
+        Carga el estado completo del framework.
+        Requiere que el framework ya esté inicializado con sus componentes.
+        Los agentes y recursos se re-crearán en el framework a partir de los datos guardados.
+        """
+        self.logger.info("Loading full framework state...")
         try:
-            # Exportar agentes
-            agents_dir = output_dir / "agents"
-            agents_dir.mkdir(exist_ok=True)
-            for agent in self.framework.registry.list_all_agents():
-                agent_state = await self.backend.load_agent_state(agent.id)
-                if agent_state:
-                    with open(agents_dir / f"{agent.id}.json", "w") as f:
-                        json.dump(agent_state, f, indent=2)
-            self.logger.info(f"Exported {len(self.framework.registry.list_all_agents())} agent states.")
-
-            # Exportar recursos
-            resources_dir = output_dir / "resources"
-            resources_dir.mkdir(exist_ok=True)
-            for resource in self.framework.resource_manager.list_all_resources():
-                res_data = {
-                    "id": resource.id,
-                    "type": resource.type.value,
-                    "name": resource.name,
-                    "namespace": resource.namespace,
-                    "data": resource.data,
-                    "owner_agent_id": resource.owner_agent_id,
-                    "metadata": resource.metadata,
-                    "created_at": resource.created_at.isoformat(),
-                    "updated_at": resource.updated_at.isoformat()
-                }
-                with open(resources_dir / f"{resource.id}.json", "w") as f:
-                    json.dump(res_data, f, indent=2)
-            self.logger.info(f"Exported {len(self.framework.resource_manager.list_all_resources())} resources.")
-
-            # Exportar estado general del framework (referencias a agentes/recursos)
-            framework_state_meta_path = output_dir / "framework_state_meta.json"
-            framework_state_meta = {
-                "agents": {a.id: {"name": a.name, "namespace": a.namespace} for a in self.framework.registry.list_all_agents()},
-                "resources": {r.id: {"name": r.name, "type": r.type.value} for r in self.framework.resource_manager.list_all_resources()},
-                "last_export": datetime.now().isoformat()
-            }
-            with open(framework_state_meta_path, "w") as f:
-                json.dump(framework_state_meta, f, indent=2)
-            self.logger.info("Exported framework state metadata.")
+            # Cargar agentes
+            cursor = await self.conn.execute("SELECT id FROM agents")
+            agent_ids = [row[0] for row in await cursor.fetchall()]
             
+            for agent_id in agent_ids:
+                agent_data = await self.load_agent_state(agent_id)
+                if agent_data:
+                    # Aquí la lógica se vuelve compleja. No podemos "recargar" una instancia BaseAgent
+                    # sin saber su clase concreta. Se necesitaría un AgentFactory que pueda
+                    # reconstruir agentes a partir de sus datos, o al menos un mapeo.
+                    # Para esta demo, solo verificamos que los datos se cargan.
+                    # En un sistema real, el AgentFactory tendría un método `reconstruct_agent(data)`.
+                    self.logger.debug(f"Loaded agent data for ID: {agent_id}. Needs reconstruction.")
+                    # Ejemplo rudimentario de cómo se "reconstruiría"
+                    # agent_instance = framework.agent_factory.reconstruct_agent(agent_data)
+                    # if agent_instance:
+                    #     await framework.registry.register_agent(agent_instance)
+            
+            # Cargar recursos
+            cursor = await self.conn.execute("SELECT id FROM resources")
+            resource_ids = [row[0] for row in await cursor.fetchall()]
+            for resource_id in resource_ids:
+                resource_data = await self.load_resource(resource_id)
+                if resource_data:
+                    # Añadir el recurso al resource manager del framework
+                    await framework.resource_manager.create_resource(resource_data)
+                    self.logger.debug(f"Loaded resource: {resource_data.id}")
+            
+            self.logger.info("Full framework state loaded (reconstruction of agents is simplified).")
             return True
         except Exception as e:
-            self.logger.error(f"Error exporting framework state to directory {output_dir}: {e}")
+            self.logger.error(f"Failed to load full framework state: {e}")
             return False
 
-    async def import_state_from_directory(self, input_dir: Path) -> bool:
-        """Importa el estado completo del framework desde un directorio."""
+    async def cleanup(self, older_than_days: int = 30) -> Dict[str, int]:
+        if not self.conn: return {"messages_deleted": 0, "resources_deleted": 0}
         try:
-            # Importar estado general del framework (metadata)
-            framework_state_meta_path = input_dir / "framework_state_meta.json"
-            if not framework_state_meta_path.exists():
-                self.logger.error(f"Framework state metadata file not found at {framework_state_meta_path}")
+            threshold_date = (datetime.now() - timedelta(days=older_than_days)).isoformat()
+            
+            cursor = await self.conn.execute("DELETE FROM messages WHERE timestamp < ?", (threshold_date,))
+            messages_deleted = cursor.rowcount
+            
+            # Los recursos probablemente no deberían tener una limpieza automática por antigüedad
+            # a menos que sean temporales. Esto es solo para demostración.
+            cursor = await self.conn.execute("DELETE FROM resources WHERE last_modified < ?", (threshold_date,))
+            resources_deleted = cursor.rowcount
+
+            await self.conn.commit()
+            self.logger.info(f"Cleaned up {messages_deleted} messages and {resources_deleted} resources older than {older_than_days} days.")
+            return {"messages_deleted": messages_deleted, "resources_deleted": resources_deleted}
+        except Exception as e:
+            self.logger.error(f"Failed to perform cleanup: {e}")
+            return {"messages_deleted": 0, "resources_deleted": 0, "error": str(e)}
+
+    async def close(self) -> None:
+        if self.conn:
+            await self.conn.close()
+            self.conn = None
+            self.logger.info("SQLite connection closed.")
+
+# ================================\
+# PERSISTENCE MANAGER
+# ================================\
+
+class PersistenceManager:
+    """
+    Gestiona el almacenamiento y recuperación del estado del framework.
+    Actúa como una interfaz para diferentes backends de persistencia.
+    """
+    def __init__(self, framework: "AgentFramework", config: Optional[PersistenceConfig] = None):
+        self.framework = framework
+        self.config = config or PersistenceConfig()
+        self.backend: PersistenceInterface
+        self.logger = logging.getLogger("PersistenceManager")
+        self._auto_save_task: Optional[asyncio.Task] = None
+        self._stop_event = asyncio.Event()
+        self.is_initialized = False
+
+        self._initialize_backend()
+        self.logger.info("PersistenceManager initialized.")
+
+    def _initialize_backend(self):
+        """Selecciona e inicializa el backend de persistencia."""
+        if self.config.backend == PersistenceBackend.SQLITE:
+            self.backend = SQLitePersistence()
+        elif self.config.backend == PersistenceBackend.JSON_FILE:
+            # TODO: Implement JSONFilePersistence
+            raise NotImplementedError("JSON_FILE backend not yet implemented.")
+        elif self.config.backend == PersistenceBackend.MEMORY:
+            # TODO: Implement InMemoryPersistence (útil para pruebas)
+            raise NotImplementedError("MEMORY backend not yet implemented.")
+        else:
+            raise ValueError(f"Unsupported persistence backend: {self.config.backend}")
+
+    async def initialize(self) -> bool:
+        """Inicializa el backend de persistencia seleccionado."""
+        if not self.is_initialized:
+            success = await self.backend.initialize(self.config)
+            if success:
+                self.is_initialized = True
+                if self.config.auto_save_interval > 0:
+                    self._auto_save_task = asyncio.create_task(self._auto_save_loop())
+                    self.logger.info(f"Auto-save enabled with interval: {self.config.auto_save_interval} seconds.")
+                return True
+            else:
+                self.logger.error("Failed to initialize persistence backend.")
                 return False
+        return True
 
-            with open(framework_state_meta_path, "r") as f:
-                framework_state_meta = json.load(f)
-            self.logger.info("Importing framework state metadata.")
-
-            # Importar agentes
-            agents_dir = input_dir / "agents"
-            if agents_dir.exists():
-                for agent_file in agents_dir.glob("*.json"):
-                    try:
-                        with open(agent_file, "r") as f:
-                            agent_data = json.load(f)
-                        # Recrear el agente en el registro del framework y persistir su estado
-                        # Esto asume que el AgentManager/Factory sabe cómo recrear el agente desde sus datos.
-                        # Para una implementación completa, se requeriría más lógica de hidratación.
-                        self.logger.debug(f"Importing agent: {agent_data.get('id')} - {agent_data.get('name')}")
-                        # self.framework.agent_manager.create_agent_from_persisted_data(agent_data) # Esto necesitaría un método en AgentManager
-                        # Por ahora, solo guardamos en la persistencia.
-                        await self.backend.save_agent_state_from_dict(agent_data) # Necesita un método que reciba dict
-                    except Exception as e:
-                        self.logger.error(f"Error importing agent from {agent_file}: {e}")
-                self.logger.info(f"Imported agents from {agents_dir}.")
-
-            # Importar recursos
-            resources_dir = input_dir / "resources"
-            if resources_dir.exists():
-                for resource_file in resources_dir.glob("*.json"):
-                    try:
-                        with open(resource_file, "r") as f:
-                            resource_data = json.load(f)
-                        # Recrear el objeto AgentResource y persistirlo
-                        from core.autonomous_agent_framework import ResourceType
-                        resource_obj = AgentResource(
-                            id=resource_data["id"],
-                            type=ResourceType(resource_data["type"]),
-                            name=resource_data["name"],
-                            namespace=resource_data["namespace"],
-                            data=resource_data["data"],
-                            owner_agent_id=resource_data["owner_agent_id"],
-                            metadata=resource_data["metadata"],
-                            created_at=datetime.fromisoformat(resource_data["created_at"]),
-                            updated_at=datetime.fromisoformat(resource_data["updated_at"])
-                        )
-                        await self.backend.save_resource(resource_obj)
-                    except Exception as e:
-                        self.logger.error(f"Error importing resource from {resource_file}: {e}")
-                self.logger.info(f"Imported resources from {resources_dir}.")
-            
-            self.logger.info(f"Successfully imported state from directory {input_dir}.")
-            return True
-        except Exception as e:
-            self.logger.error(f"Error importing framework state from directory {input_dir}: {e}")
-            return False
-
-    async def close(self) -> bool:
-        """Cerrar el sistema de persistencia y tareas."""
-        if self.auto_save_task:
-            self.auto_save_task.cancel()
+    async def _auto_save_loop(self):
+        """Bucle para el auto-guardado periódico."""
+        while not self._stop_event.is_set():
             try:
-                await self.auto_save_task
+                await asyncio.sleep(self.config.auto_save_interval)
+                self.logger.info("Performing auto-save...")
+                await self.save_full_state(self.framework)
             except asyncio.CancelledError:
-                pass
-        return await self.backend.close()
+                self.logger.info("Auto-save task cancelled.")
+                break
+            except Exception as e:
+                self.logger.error(f"Error during auto-save: {e}")
 
-# Esto es parte de la refactorización anterior. Necesitaría un AgentFramework para ser un argumento
-# para save_full_state, restore_framework_state, _restore_agents, _restore_resources, etc.
+    async def save_full_state(self, framework: "AgentFramework") -> bool:
+        """Guarda el estado completo del framework."""
+        if not self.is_initialized:
+            self.logger.warning("Persistence not initialized. Cannot save state.")
+            return False
+        return await self.backend.save_full_framework_state(framework)
 
-# Ejemplo de uso (simulado para la refactorización, esto iría en un archivo de demo/ejemplo)
-async def example_usage():
-    logger = logging.getLogger("PersistenceDemo")
-    # Este ejemplo asume un AgentFramework simulado para evitar dependencias circulares
-    # y para que el código sea directamente ejecutable para la demo de persistencia.
-    class MockAgent:
-        def __init__(self, agent_id, namespace, name, status, capabilities=None, metadata=None, created_at=None, last_heartbeat=None):
-            self.id = agent_id
-            self.namespace = namespace
-            self.name = name
-            self.status = status
-            self.capabilities = capabilities if capabilities is not None else []
-            self.metadata = metadata if metadata is not None else {}
-            self.created_at = created_at if created_at is not None else datetime.now()
-            self.last_heartbeat = last_heartbeat if last_heartbeat is not None else datetime.now()
-            self.inbox = asyncio.Queue() # Dummy for serialization
-            self.outbox = asyncio.Queue() # Dummy for serialization
+    async def load_full_state(self, framework: "AgentFramework") -> bool:
+        """Carga el estado completo del framework."""
+        if not self.is_initialized:
+            self.logger.warning("Persistence not initialized. Cannot load state.")
+            return False
+        return await self.backend.load_full_framework_state(framework)
 
-    class MockResourceManager:
-        def __init__(self):
-            self._resources = {}
-        def list_all_resources(self):
-            return list(self._resources.values())
-        async def create_resource(self, resource):
-            self._resources[resource.id] = resource
-            return True
-        def find_resources_by_owner(self, owner_id):
-            return [res for res in self._resources.values() if res.owner_agent_id == owner_id]
+    async def close(self) -> None:
+        """Cierra el gestor de persistencia y su backend."""
+        if self._auto_save_task:
+            self._stop_event.set()
+            self._auto_save_task.cancel()
+            try:
+                await self._auto_save_task
+            except asyncio.CancelledError:
+                pass # Expected
+        if self.is_initialized:
+            await self.backend.close()
+            self.is_initialized = False
+        self.logger.info("PersistenceManager closed.")
 
-    class MockAgentRegistry:
-        def __init__(self):
-            self._agents = {}
-        def list_all_agents(self):
-            return list(self._agents.values())
-        def get_agent(self, agent_id):
-            return self._agents.get(agent_id)
+# ================================\
+# PERSISTENCE FACTORY (optional, useful for DI)
+# ================================\
 
-    class MockFramework:
-        def __init__(self):
-            self.registry = MockAgentRegistry()
-            self.resource_manager = MockResourceManager()
+class PersistenceFactory:
+    """Factoría para crear instancias de PersistenceManager."""
+    @staticmethod
+    def create_persistence_manager(framework: "AgentFramework", config: Optional[PersistenceConfig] = None) -> PersistenceManager:
+        return PersistenceManager(framework, config)
 
-    mock_framework = MockFramework()
+# ================================\
+# DEMO
+# ================================\
 
-    config = PersistenceConfig(backend=PersistenceBackend.SQLITE, connection_string="demo_framework.db", auto_save_interval=2)
-    persistence_manager = PersistenceManager(config)
+async def persistence_demo():
+    """Ejemplo de uso del sistema de persistencia."""
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    print("🚀 Starting Persistence System Demo")
+    print("="*50)
+
+    # Inicializar Framework (necesario para registry, message_bus, resource_manager)
+    framework = AgentFramework()
+    await framework.start()
+
+    persistence_config = PersistenceConfig(
+        backend=PersistenceBackend.SQLITE,
+        connection_string="demo_framework.db",
+        auto_save_interval=5 # Guardar cada 5 segundos para la demo
+    )
+    persistence_manager = PersistenceManager(framework, persistence_config)
     await persistence_manager.initialize()
 
-    # Simular algunos agentes y recursos
-    agent1 = MockAgent("agent1_id", "namespace.test", "TestAgent1", AgentStatus.ACTIVE,
-                       metadata={"config_key": "value1"}, created_at=datetime.now())
-    agent2 = MockAgent("agent2_id", "namespace.test", "TestAgent2", AgentStatus.TERMINATED,
-                       metadata={"config_key": "value2"}, created_at=datetime.now() - timedelta(days=50))
-    mock_framework.registry._agents["agent1_id"] = agent1
-    mock_framework.registry._agents["agent2_id"] = agent2
-
-    resource1 = AgentResource(id="res1", type=ResourceType.DATA, name="data1", namespace="data.prod",
-                              data={"value": 100}, owner_agent_id="agent1_id",
-                              created_at=datetime.now(), updated_at=datetime.now())
-    resource2 = AgentResource(id="res2", type=ResourceType.CODE, name="script1", namespace="code.util",
-                              data={"content": "print('hello')"}, owner_agent_id="agent1_id",
-                              created_at=datetime.now(), updated_at=datetime.now())
-    await mock_framework.resource_manager.create_resource(resource1)
-    await mock_framework.resource_manager.create_resource(resource2)
+    # Eliminar archivo de DB anterior para una demo limpia
+    if Path(persistence_config.connection_string).exists():
+        Path(persistence_config.connection_string).unlink()
+        print(f"🗑️ Cleaned up previous database: {persistence_config.connection_string}")
+        # Volver a inicializar la conexión si se borró el archivo
+        await persistence_manager.close()
+        await persistence_manager.initialize()
 
 
-    # Demo de guardado
-    logger.info("💾 Saving full framework state...")
-    save_success = await persistence_manager.save_full_state(mock_framework)
-    logger.info(f"Save successful: {save_success}")
+    print("⚙️ Persistence system initialized. Simulating agent activity...")
 
-    # Simular una "limpieza" en memoria del framework para restaurar
-    mock_framework.registry._agents = {}
-    mock_framework.resource_manager._resources = {}
-    logger.info("🧹 Simulated clearing framework state in memory.")
-    logger.info(f"Agents in memory after clear: {len(mock_framework.registry.list_all_agents())}")
-    logger.info(f"Resources in memory after clear: {len(mock_framework.resource_manager.list_all_resources())}")
+    # Simular algunos agentes
+    class DemoAgent(BaseAgent):
+        def __init__(self, agent_id: str, name: str, framework_instance: AgentFramework):
+            super().__init__("demo.agent", name, framework_instance)
+            self.id = agent_id
+            self.status = AgentStatus.ACTIVE
+            self.message_queue = asyncio.Queue()
 
-    # Demo de restauración
-    logger.info("🔄 Restoring framework state...")
-    restore_success = await persistence_manager.restore_framework_state(mock_framework)
-    logger.info(f"Restore successful: {restore_success}")
-    logger.info(f"Agents in memory after restore: {len(mock_framework.registry.list_all_agents())}")
-    logger.info(f"Resources in memory after restore: {len(mock_framework.resource_manager.list_all_resources())}")
+        async def initialize(self) -> bool:
+            self.logger.info(f"DemoAgent {self.name} initialized.")
+            return True
+        
+        async def process_message(self, message):
+            self.logger.info(f"DemoAgent {self.name} received message: {message.payload.get('action')}")
+            # Simular trabajo
+            await asyncio.sleep(0.1)
 
-    # Verificar si los agentes y recursos restaurados son accesibles y correctos (básico)
-    restored_agent1 = mock_framework.registry.get_agent("agent1_id")
-    if restored_agent1:
-        logger.info(f"Restored Agent 1: {restored_agent1.name} (Status: {restored_agent1.status.value})")
-    else:
-        logger.warning("Agent 1 not restored.")
+    agent1 = DemoAgent("pers-agent-001", "PersistAgent1", framework)
+    agent2 = DemoAgent("pers-agent-002", "PersistAgent2", framework)
     
-    restored_resource1 = await persistence_manager.backend.load_resource("res1") # Se carga del backend no del resource_manager restaurado
-    if restored_resource1:
-        logger.info(f"Restored Resource 1 data: {restored_resource1.data}")
+    await agent1.initialize()
+    await agent2.initialize()
+
+    await agent1.start()
+    await agent2.start()
+
+    # Simular intercambio de mensajes para que se persistan
+    await agent1.send_message(agent2.id, "greet", {"text": "Hello Agent2!"})
+    await agent2.send_message(agent1.id, "reply", {"text": "Hi Agent1!"})
+    await asyncio.sleep(1) # Dar tiempo para que se procesen y guarden
+
+    # Simular la creación de un recurso
+    test_resource = AgentResource(
+        type=ResourceType.DATA,
+        name="demo_resource",
+        namespace="resource.demo",
+        data={"content": "This is a demo resource"},
+        owner_agent_id=agent1.id
+    )
+    await framework.resource_manager.create_resource(test_resource)
+    
+    print("✅ Simulated agent activity (messages and resources)")
+
+    # Guardar estado completo
+    # El auto-save debería encargarse de esto, pero lo hacemos manualmente para la demo
+    await persistence_manager.save_full_state(framework)
+    print("💾 Framework state saved to persistence")
+    
+    # Detener framework para simular un reinicio
+    print("\n🔄 Stopping framework to simulate restart...")
+    await framework.stop()
+    print("Framework stopped.")
+
+    # Crear una nueva instancia del framework para cargar el estado
+    print("\n🚀 Starting new framework instance to load state...")
+    new_framework = AgentFramework()
+    await new_framework.start()
+
+    new_persistence_manager = PersistenceManager(new_framework, persistence_config)
+    await new_persistence_manager.initialize()
+
+    # Cargar estado
+    print("📖 Loading persisted state into new framework instance...")
+    load_success = await new_persistence_manager.load_full_state(new_framework)
+    
+    if load_success:
+        print("✅ State loaded successfully.")
+        loaded_agents = new_framework.registry.list_all_agents()
+        loaded_resources = new_framework.resource_manager.list_all_resources()
+        print(f"   • Loaded {len(loaded_agents)} agents (note: agent instances not fully re-hydrated in this demo).")
+        print(f"   • Loaded {len(loaded_resources)} resources.")
+        
+        # Verificar un recurso cargado
+        loaded_test_resource = await new_persistence_manager.backend.load_resource(test_resource.id)
+        if loaded_test_resource:
+            print(f"   • Verified loaded resource '{loaded_test_resource.name}': {loaded_test_resource.data}")
+        else:
+            print(f"   ❌ Failed to load resource '{test_resource.id}'")
+
+        # Cargar mensajes de un agente
+        messages_for_agent1 = await new_persistence_manager.backend.load_messages(agent1.id, limit=5)
+        print(f"   • Messages involving '{agent1.name}': {len(messages_for_agent1)}")
+        for msg in messages_for_agent1:
+            print(f"     - Msg: {msg.sender_id} -> {msg.receiver_id} ({msg.message_type.value}) Payload: {msg.payload}")
+
     else:
-        logger.warning("Resource 1 not restored.")
+        print("❌ Failed to load state.")
 
-    # Demo de carga de mensajes para un agente (sin mensajes guardados en este flujo, solo demo de la función)
-    logger.info("💬 Loading messages for agent1_id (expect empty for this demo)...")
-    messages = await persistence_manager.backend.load_messages("agent1_id", limit=5)
-    logger.info(f"Loaded {len(messages)} messages for agent1_id.")
 
-    # Demo de limpieza
-    logger.info("🧹 Running cleanup (removing agents terminated 50+ days ago)...")
-    cleanup_success = await persistence_manager.backend.cleanup(older_than_days=40)
-    logger.info(f"Cleanup successful: {cleanup_success}")
-
-    # Verificar si el agente terminado fue eliminado
-    restored_agent2_after_cleanup = await persistence_manager.backend.load_agent_state("agent2_id")
-    if restored_agent2_after_cleanup:
-        logger.warning("Agent 2 still exists after cleanup (expected removal).")
-    else:
-        logger.info("Agent 2 successfully removed by cleanup.")
-
-    await persistence_manager.close()
-    logger.info("👋 Demo completed and persistence closed.")
-
+    # Cleanup demo
+    print("\n🧹 Running cleanup (removing old messages/resources)...")
+    cleanup_result = await new_persistence_manager.backend.cleanup(older_than_days=0) # Borrar todo lo de hoy
+    print(f"   • Cleanup completed: {cleanup_result}")
+    
+    # Cerrar todo
+    await new_framework.stop()
+    await new_persistence_manager.close()
+    print("\n👋 Demo completed - state management demonstrated!")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    asyncio.run(example_usage())
+    asyncio.run(persistence_demo())

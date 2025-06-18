@@ -1,3 +1,7 @@
+"""
+framework_cli.py - Herramienta de línea de comandos para el Framework de Agentes
+"""
+
 import asyncio
 import click
 import json
@@ -18,589 +22,706 @@ from rich.prompt import Prompt, Confirm
 from rich.syntax import Syntax
 from rich.tree import Tree
 
+# Imports del framework
 from core.autonomous_agent_framework import AgentFramework
+from core.specialized_agents import ExtendedAgentFactory
 from core.security_system import SecurityManager, Permission, AuthenticationMethod
 from core.persistence_system import PersistenceFactory, PersistenceBackend
 from systems.deployment_system import DeploymentOrchestrator, DeploymentEnvironment, DeploymentStrategy
-from core.backup_recovery_system import DisasterRecoveryOrchestrator, BackupType, BackupStatus
-from core.monitoring_system import MonitoringOrchestrator, AlertSeverity, AlertStatus
-from framework_config_utils import FrameworkBuilder, FrameworkConfig, AgentConfig # Importar las clases de config
+from core.backup_recovery_system import DisasterRecoveryOrchestrator
+from systems.monitoring_system import MonitoringOrchestrator, MetricsCollector # <-- CAMBIO AQUI
 
 console = Console()
 
+# ================================\
+# CLI CONFIGURATION
+# ================================\
+
 class CLIConfig:
+    """Configuración de la CLI"""
+    
     def __init__(self):
         self.config_dir = Path.home() / ".agent-framework"
         self.config_file = self.config_dir / "config.yaml"
         self.config_dir.mkdir(exist_ok=True)
         self.config = self._load_config()
-
-    def _load_config(self):
+        
+    def _load_config(self) -> Dict[str, Any]:
+        """Carga la configuración desde el archivo o usa defaults."""
         if self.config_file.exists():
             with open(self.config_file, 'r') as f:
                 return yaml.safe_load(f)
-        return {"api_url": "http://localhost:8000"}
+        return {
+            "api_base_url": "http://localhost:8000",
+            "dashboard_base_url": "http://localhost:8080",
+            "auth_token": None
+        }
 
     def _save_config(self):
+        """Guarda la configuración actual en el archivo."""
         with open(self.config_file, 'w') as f:
             yaml.safe_dump(self.config, f)
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
+        """Obtiene un valor de la configuración."""
         return self.config.get(key, default)
 
-    def set(self, key, value):
+    def set(self, key: str, value: Any):
+        """Establece un valor en la configuración y lo guarda."""
         self.config[key] = value
         self._save_config()
 
 cli_config = CLIConfig()
 
+# ================================\
+# HELPER FUNCTIONS
+# ================================\
+
 def print_success(message: str):
     console.print(f"[bold green]✅ {message}[/bold green]")
 
 def print_error(message: str):
-    console.print(f"[bold red]❌ {message}[/bold red]", file=sys.stderr)
+    console.print(f"[bold red]❌ {message}[/bold red]", err=True)
 
 def print_info(message: str):
     console.print(f"[bold blue]ℹ️ {message}[/bold blue]")
 
-class FrameworkAPIClient:
-    def __init__(self, base_url: str = None, token: str = None):
-        self.base_url = base_url or cli_config.get("api_url")
-        self.token = token or cli_config.get("token")
-        self.session = None
+def print_warning(message: str):
+    console.print(f"[bold yellow]⚠️ {message}[/bold yellow]")
 
-    async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
-        return self
+async def api_call(method: str, path: str, data: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """Realiza una llamada a la API del framework."""
+    base_url = cli_config.get("api_base_url")
+    url = f"{base_url}{path}"
+    
+    default_headers = {"Content-Type": "application/json"}
+    auth_token = cli_config.get("auth_token")
+    if auth_token:
+        default_headers["Authorization"] = f"Bearer {auth_token}"
+    
+    if headers:
+        default_headers.update(headers)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
+    try:
+        async with aiohttp.ClientSession() as session:
+            if method.upper() == "GET":
+                async with session.get(url, headers=default_headers) as response:
+                    return await response.json()
+            elif method.upper() == "POST":
+                async with session.post(url, json=data, headers=default_headers) as response:
+                    return await response.json()
+            elif method.upper() == "PUT":
+                async with session.put(url, json=data, headers=default_headers) as response:
+                    return await response.json()
+            elif method.upper() == "DELETE":
+                async with session.delete(url, headers=default_headers) as response:
+                    return await response.json()
+            else:
+                return APIResponse.error("Unsupported HTTP method", code=405)
+    except aiohttp.ClientConnectionError:
+        print_error(f"Failed to connect to API at {base_url}. Is the server running?")
+        return {"success": False, "error": {"message": "API server unreachable", "code": 503}}
+    except Exception as e:
+        print_error(f"An error occurred during API call: {e}")
+        return {"success": False, "error": {"message": str(e), "code": 500}}
 
-    async def _request(self, method: str, path: str, **kwargs):
-        headers = kwargs.pop('headers', {})
-        if self.token:
-            headers['Authorization'] = f"Bearer {self.token}"
-        kwargs['headers'] = headers
-
-        url = f"{self.base_url}{path}"
-        try:
-            async with self.session.request(method, url, **kwargs) as response:
-                response.raise_for_status()
-                return await response.json()
-        except aiohttp.ClientError as e:
-            print_error(f"API request failed: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                try:
-                    error_details = await e.response.json()
-                    print_error(f"API Error Details: {error_details.get('error', {}).get('message', 'No message')}")
-                except:
-                    pass # Couldn't parse JSON error
-            return {"success": False, "error": str(e)}
-        except Exception as e:
-            print_error(f"An unexpected error occurred: {e}")
-            return {"success": False, "error": str(e)}
-
-    async def get(self, path: str):
-        return await self._request("GET", path)
-
-    async def post(self, path: str, data: Dict[str, Any]):
-        return await self._request("POST", path, json=data)
-
-    async def put(self, path: str, data: Dict[str, Any]):
-        return await self._request("PUT", path, json=data)
-
-    async def delete(self, path: str):
-        return await self._request("DELETE", path)
+# ================================\
+# CLI COMMANDS
+# ================================\
 
 @click.group()
-def cli():
-    pass
-
-@cli.group()
-def config():
-    pass
-
-@config.command(name="set")
-@click.argument("key")
-@click.argument("value")
-def set_config(key, value):
-    cli_config.set(key, value)
-    print_success(f"Config '{key}' set to '{value}'")
-
-@config.command(name="get")
-@click.argument("key")
-def get_config(key):
-    value = cli_config.get(key)
-    if value is not None:
-        print_info(f"Config '{key}': {value}")
-    else:
-        print_error(f"Config '{key}' not found.")
-
-@config.command(name="show")
-def show_config():
-    panel_content = ""
-    for key, value in cli_config.config.items():
-        panel_content += f"[bold blue]{key}[/bold blue]: {value}\n"
-    console.print(Panel(panel_content, title="CLI Configuration", border_style="cyan"))
+@click.pass_context
+def cli(ctx):
+    """Herramienta de línea de comandos para gestionar el Autonomous Agent Framework."""
+    ctx.ensure_object(dict)
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s') # Default to WARNING for CLI
 
 @cli.command()
-@click.option("--username", prompt="Username", help="Username for authentication")
-@click.option("--password", prompt="Password", hide_input=True, confirmation_prompt=True, help="Password for authentication")
-@click.option("--save-token", is_flag=True, help="Save token to config file")
-@click.pass_context
-def login(ctx, username, password, save_token):
+@click.option('--url', default="http://localhost:8000", help='Base URL for the API server.')
+@click.option('--dashboard-url', default="http://localhost:8080", help='Base URL for the Web Dashboard.')
+def configure(url, dashboard_url):
+    """Configura la URL base del servidor API y del dashboard."""
+    cli_config.set("api_base_url", url)
+    cli_config.set("dashboard_base_url", dashboard_url)
+    print_success(f"API base URL set to: {url}")
+    print_success(f"Dashboard base URL set to: {dashboard_url}")
+
+@cli.command()
+@click.option('--username', prompt='API Username', help='Username for API authentication.')
+@click.option('--password', prompt='API Password', hide_input=True, confirmation_prompt=False, help='Password for API authentication.')
+@click.option('--api-key', help='Optional API Key for authentication (overrides username/password if provided).')
+def login(username, password, api_key):
+    """Autentica con el servidor API y guarda el token."""
     async def _login():
-        async with FrameworkAPIClient() as client:
-            response = await client.post('/api/auth/login', {'username': username, 'password': password})
-            if response.get('success'):
-                token = response['data']['token']
-                print_success("Login successful!")
-                print_info(f"Your token (valid for 1 hour): {token[:40]}...")
-                if save_token:
-                    cli_config.set("token", token)
-                    print_success("Token saved to config.")
-            else:
-                print_error(f"Login failed: {response.get('error', {}).get('message', 'Unknown error')}")
+        payload = {}
+        if api_key:
+            payload = {"method": AuthenticationMethod.API_KEY.value, "api_key": api_key}
+            print_info("Attempting login with API Key...")
+        else:
+            payload = {"method": AuthenticationMethod.JWT_TOKEN.value, "username": username, "password": password}
+            print_info("Attempting login with Username/Password...")
+
+        response = await api_call("POST", "/api/auth/login", data=payload)
+        
+        if response.get("success"):
+            token = response["data"]["token"]
+            cli_config.set("auth_token", token)
+            print_success("Logged in successfully. Token stored.")
+        else:
+            print_error(f"Login failed: {response.get('error', {}).get('message', 'Unknown error')}")
+            cli_config.set("auth_token", None) # Clear any old token
+
     asyncio.run(_login())
 
 @cli.command()
-@click.option("--name", prompt="Agent Name", help="Name of the agent")
-@click.option("--namespace", prompt="Agent Namespace", help="Namespace of the agent (e.g., agent.planning)")
-@click.option("--agent-class", prompt="Agent Class Name", help="Python class name for the agent (e.g., StrategistAgent)")
-def create_agent(name, namespace, agent_class):
+def logout():
+    """Elimina el token de autenticación almacenado."""
+    cli_config.set("auth_token", None)
+    print_success("Logged out. Authentication token cleared.")
+
+@cli.command()
+def status():
+    """Muestra el estado actual del framework y los servicios."""
+    async def _status():
+        print_info("Fetching system status...")
+        response = await api_call("GET", "/api/health")
+        
+        if response.get("success"):
+            data = response["data"]
+            
+            table = Table(title="Framework Status", show_lines=True)
+            table.add_column("Component", style="cyan", no_wrap=True)
+            table.add_column("Status", style="magenta")
+            table.add_column("Details", style="green")
+            
+            table.add_row("Overall System", "[bold]" + data['status'].upper() + "[/bold]", data.get('message', ''))
+            table.add_row("Agent Framework Core", data['framework']['status'], f"Agents: {data['framework']['total_agents']} (Active: {data['framework']['active_agents']})")
+            table.add_row("REST API", data['api']['status'], f"Port: {data['api']['port']}")
+            table.add_row("Persistence System", data['persistence']['status'], f"Backend: {data['persistence']['backend']} (Messages: {data['persistence']['total_messages']}, Resources: {data['persistence']['total_resources']})")
+            table.add_row("Security System", data['security']['status'], f"Auth Enabled: {data['security']['authentication_enabled']} (Auth Method: {data['security']['auth_method']})")
+            table.add_row("Monitoring System", data['monitoring']['status'], f"Metrics Collected: {data['monitoring']['metrics_collected']}")
+            
+            console.print(table)
+            
+            # Additional details from metrics if available
+            metrics_response = await api_call("GET", "/api/metrics")
+            if metrics_response.get("success"):
+                metrics_data = metrics_response["data"]
+                if metrics_data:
+                    console.print("\n[bold]📈 Key Metrics:[/bold]")
+                    metrics_table = Table(show_header=False, show_lines=False, box=None)
+                    metrics_table.add_column(style="cyan")
+                    metrics_table.add_column(style="green")
+                    
+                    # Display a few key metrics
+                    for i, (name, metric) in enumerate(metrics_data.items()):
+                        if i >= 5: # Limit to 5 for brevity
+                            break
+                        metrics_table.add_row(f"  {metric['name']}:", f"{metric['value']:.2f} {metric['unit']}")
+                    console.print(metrics_table)
+            
+        else:
+            print_error(f"Failed to retrieve status: {response.get('error', {}).get('message', 'Unknown error')}")
+            
+    asyncio.run(_status())
+
+@cli.command()
+@click.option('--full', is_flag=True, help='Show full details for each agent.')
+def agents(full):
+    """Lista todos los agentes registrados."""
+    async def _agents():
+        print_info("Fetching agent list...")
+        response = await api_call("GET", "/api/agents")
+        
+        if response.get("success"):
+            agents_data = response["data"]
+            if not agents_data:
+                print_info("No agents found.")
+                return
+            
+            table = Table(title="Registered Agents", show_lines=True)
+            table.add_column("ID", style="cyan", no_wrap=True)
+            table.add_column("Name", style="magenta")
+            table.add_column("Namespace", style="yellow")
+            table.add_column("Status", style="green")
+            if full:
+                table.add_column("Capabilities", style="blue")
+                table.add_column("Last Heartbeat", style="dim")
+
+            for agent in agents_data:
+                status_color = "green" if agent['status'] == 'ACTIVE' else "red" if agent['status'] == 'ERROR' else "yellow"
+                
+                row_data = [
+                    agent['id'][:8] + "...",
+                    agent['name'],
+                    agent['namespace'],
+                    f"[{status_color}]{agent['status']}[/{status_color}]"
+                ]
+                if full:
+                    capabilities = ", ".join([cap['name'] for cap in agent.get('capabilities', [])]) or "N/A"
+                    last_heartbeat = datetime.fromisoformat(agent['last_heartbeat']).strftime('%Y-%m-%d %H:%M:%S') if agent['last_heartbeat'] else "N/A"
+                    row_data.extend([capabilities, last_heartbeat])
+                table.add_row(*row_data)
+            
+            console.print(table)
+        else:
+            print_error(f"Failed to list agents: {response.get('error', {}).get('message', 'Unknown error')}")
+
+    asyncio.run(_agents())
+
+@cli.command()
+@click.argument('namespace')
+@click.argument('name')
+@click.option('--description', help='Description for the new agent.')
+@click.option('--capabilities', multiple=True, help='List of capabilities (e.g., "action.generate.code").')
+def create_agent(namespace, name, description, capabilities):
+    """Crea un nuevo agente en el framework."""
     async def _create_agent():
-        async with FrameworkAPIClient() as client:
-            response = await client.post('/api/agents', {
-                'name': name,
-                'namespace': namespace,
-                'agent_class_name': agent_class
-            })
-            if response.get('success'):
-                agent_id = response['data']['agent_id']
-                print_success(f"Agent '{name}' ({namespace}) created with ID: {agent_id}")
-            else:
-                print_error(f"Failed to create agent: {response.get('error', {}).get('message', 'Unknown error')}")
+        print_info(f"Creating agent '{name}' in namespace '{namespace}'...")
+        agent_data = {
+            "namespace": namespace,
+            "name": name,
+            "description": description,
+            "capabilities": [{"name": cap, "namespace": cap, "description": f"Capability {cap}"} for cap in capabilities]
+        }
+        
+        response = await api_call("POST", "/api/agents", data=agent_data)
+        
+        if response.get("success"):
+            agent_id = response["data"]["id"]
+            print_success(f"Agent '{name}' created with ID: {agent_id}")
+        else:
+            print_error(f"Failed to create agent: {response.get('error', {}).get('message', 'Unknown error')}")
+
     asyncio.run(_create_agent())
 
 @cli.command()
-def list_agents():
-    async def _list_agents():
-        async with FrameworkAPIClient() as client:
-            response = await client.get('/api/agents')
-            if response.get('success'):
-                agents = response['data']['agents']
-                table = Table(title="Registered Agents")
-                table.add_column("ID", style="cyan", no_wrap=True)
-                table.add_column("Name", style="magenta")
-                table.add_column("Namespace", style="green")
-                table.add_column("Status", style="yellow")
-                table.add_column("Last Heartbeat", style="blue")
-
-                for agent in agents:
-                    status_color = "green" if agent['status'] == 'active' else "red" if agent['status'] == 'error' else "yellow"
-                    table.add_row(
-                        agent['id'][:8] + "...",
-                        agent['name'],
-                        agent['namespace'],
-                        f"[{status_color}]{agent['status']}[/{status_color}]",
-                        datetime.fromisoformat(agent['last_heartbeat']).strftime('%Y-%m-%d %H:%M:%S')
-                    )
-                console.print(table)
-            else:
-                print_error(f"Failed to list agents: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_list_agents())
-
-@cli.command()
-@click.argument("agent_id")
-@click.option("--action", prompt="Action Name", help="Action to execute")
-@click.option("--params", help="JSON parameters for the action", default="{}")
-def execute_agent_action(agent_id, action, params):
-    async def _execute_action():
-        try:
-            params_dict = json.loads(params)
-        except json.JSONDecodeError:
-            print_error("Invalid JSON for parameters.")
-            return
-
-        async with FrameworkAPIClient() as client:
-            response = await client.post(f'/api/agents/{agent_id}/execute', {
-                'action': action,
-                'params': params_dict
-            })
-            if response.get('success'):
-                print_success(f"Action '{action}' executed on agent {agent_id}. Result: {response['data']}")
-            else:
-                print_error(f"Failed to execute action: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_execute_action())
-
-@cli.command()
-@click.argument("agent_id")
-def get_agent_details(agent_id):
-    async def _get_agent_details():
-        async with FrameworkAPIClient() as client:
-            response = await client.get(f'/api/agents/{agent_id}')
-            if response.get('success'):
-                agent = response['data']['agent']
-                panel_content = f"""
-[bold]ID:[/bold] {agent['id']}
-[bold]Name:[/bold] {agent['name']}
-[bold]Namespace:[/bold] {agent['namespace']}
-[bold]Status:[/bold] {agent['status']}
-[bold]Last Heartbeat:[/bold] {datetime.fromisoformat(agent['last_heartbeat']).strftime('%Y-%m-%d %H:%M:%S')}
-
-[bold]Capabilities:[/bold]
-"""
-                if agent['capabilities']:
-                    for cap in agent['capabilities']:
-                        panel_content += f"  - [cyan]{cap['name']}[/cyan] ([italic]{cap['namespace']}[/italic]): {cap['description']}\n"
-                else:
-                    panel_content += "  No capabilities listed.\n"
-
-                console.print(Panel(panel_content, title=f"Agent Details: {agent['name']}", border_style="green"))
-            else:
-                print_error(f"Failed to get agent details: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_get_agent_details())
-
-@cli.command()
-@click.argument("agent_id")
-def delete_agent(agent_id):
+@click.argument('agent_id_or_name')
+def delete_agent(agent_id_or_name):
+    """Elimina un agente por ID o nombre."""
     async def _delete_agent():
-        if not Confirm.ask(f"Are you sure you want to delete agent {agent_id}?", default=False):
+        print_warning(f"Attempting to delete agent: {agent_id_or_name}...")
+        if not Confirm.ask(f"Are you sure you want to delete agent '{agent_id_or_name}'?", default=False):
             print_info("Operation cancelled.")
             return
 
-        async with FrameworkAPIClient() as client:
-            response = await client.delete(f'/api/agents/{agent_id}')
-            if response.get('success'):
-                print_success(f"Agent {agent_id} deleted successfully.")
+        # First, try to find by name if not an ID
+        agent_id = agent_id_or_name
+        if len(agent_id_or_name) < 30: # Assume short string is a name, UUIDs are longer
+            response = await api_call("GET", "/api/agents")
+            if response.get("success"):
+                found_agent = next((a for a in response["data"] if a["name"] == agent_id_or_name), None)
+                if found_agent:
+                    agent_id = found_agent["id"]
+                else:
+                    print_error(f"Agent '{agent_id_or_name}' not found by name or ID.")
+                    return
             else:
-                print_error(f"Failed to delete agent: {response.get('error', {}).get('message', 'Unknown error')}")
+                print_error(f"Could not retrieve agent list to resolve name: {response.get('error', {}).get('message', 'Unknown error')}")
+                return
+
+        response = await api_call("DELETE", f"/api/agents/{agent_id}")
+        
+        if response.get("success"):
+            print_success(f"Agent '{agent_id_or_name}' (ID: {agent_id[:8]}...) deleted successfully.")
+        else:
+            print_error(f"Failed to delete agent '{agent_id_or_name}': {response.get('error', {}).get('message', 'Unknown error')}")
+
     asyncio.run(_delete_agent())
 
 @cli.command()
-def health():
-    async def _health():
-        async with FrameworkAPIClient() as client:
-            response = await client.get('/api/health')
-            if response.get('success'):
-                data = response['data']
-                status_icon = "🟢" if data['status'] == 'healthy' else "🔴"
-                panel_content = f"""
-{status_icon} [bold]Overall Status:[/bold] {data['status']}
-[bold]Timestamp:[/bold] {datetime.fromisoformat(data['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}
+@click.argument('agent_id')
+@click.argument('action')
+@click.argument('params', type=str, required=False)
+def send_action(agent_id, action, params):
+    """Envía una acción a un agente específico con parámetros JSON."""
+    async def _send_action():
+        print_info(f"Sending action '{action}' to agent '{agent_id}'...")
+        try:
+            parsed_params = json.loads(params) if params else {}
+        except json.JSONDecodeError:
+            print_error("Invalid JSON for parameters. Please use valid JSON string (e.g., '{\"key\":\"value\"}').")
+            return
+            
+        message_data = {
+            "receiver_id": agent_id,
+            "message_type": "COMMAND",
+            "payload": {
+                "action": action,
+                "parameters": parsed_params
+            }
+        }
+        
+        response = await api_call("POST", "/api/messages", data=message_data)
+        
+        if response.get("success"):
+            message_id = response["data"]["message_id"]
+            print_success(f"Action '{action}' sent to agent '{agent_id}'. Message ID: {message_id}")
+        else:
+            print_error(f"Failed to send action: {response.get('error', {}).get('message', 'Unknown error')}")
 
-[bold]Framework:[/bold]
-  [dim]Total Agents:[/dim] {data['framework']['total_agents']}
-  [dim]Active Agents:[/dim] {data['framework']['active_agents']}
-  [dim]Messages in Bus:[/dim] {data['framework']['messages_in_bus']}
-
-[bold]Components Status:[/bold]
-"""
-                for comp, stat in data['components'].items():
-                    comp_icon = "🟢" if stat['status'] == 'healthy' else "🔴"
-                    panel_content += f"  {comp_icon} [dim]{comp}:[/dim] {stat['status']}\n"
-                    if stat.get('details'):
-                        for k, v in stat['details'].items():
-                            panel_content += f"    - {k}: {v}\n"
-                
-                console.print(Panel(panel_content, title="System Health", border_style="cyan"))
-            else:
-                print_error(f"Failed to get health status: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_health())
+    asyncio.run(_send_action())
 
 @cli.command()
-@click.option("--limit", default=10, help="Number of metrics to display.")
-def metrics(limit):
+def metrics():
+    """Muestra las métricas del sistema."""
     async def _metrics():
-        async with FrameworkAPIClient() as client:
-            response = await client.get('/api/metrics')
-            if response.get('success'):
-                metrics_data = response['data']['metrics']
-                table = Table(title=f"System Metrics (Latest {limit})")
-                table.add_column("Name", style="cyan")
-                table.add_column("Value", style="magenta")
-                table.add_column("Unit", style="green")
-                table.add_column("Timestamp", style="blue")
-                table.add_column("Tags", style="dim")
+        print_info("Fetching system metrics...")
+        response = await api_call("GET", "/api/metrics")
+        
+        if response.get("success"):
+            metrics_data = response["data"]
+            if not metrics_data:
+                print_info("No metrics available.")
+                return
+            
+            table = Table(title="System Metrics", show_lines=True)
+            table.add_column("Metric Name", style="cyan")
+            table.add_column("Value", style="magenta")
+            table.add_column("Unit", style="yellow")
+            table.add_column("Timestamp", style="green")
+            table.add_column("Tags", style="blue")
+            
+            for name, metric in metrics_data.items():
+                tags = json.dumps(metric.get('tags', {})) if metric.get('tags') else "N/A"
+                table.add_row(
+                    metric['name'],
+                    f"{metric['value']:.2f}",
+                    metric.get('unit', ''),
+                    datetime.fromisoformat(metric['timestamp']).strftime('%Y-%m-%d %H:%M:%S'),
+                    tags
+                )
+            console.print(table)
+        else:
+            print_error(f"Failed to retrieve metrics: {response.get('error', {}).get('message', 'Unknown error')}")
 
-                for metric in list(metrics_data.values())[:limit]:
-                    table.add_row(
-                        metric['name'],
-                        f"{metric['value']:.2f}",
-                        metric['unit'],
-                        datetime.fromisoformat(metric['timestamp']).strftime('%H:%M:%S'),
-                        json.dumps(metric['tags']) if metric['tags'] else ""
-                    )
-                console.print(table)
-            else:
-                print_error(f"Failed to get metrics: {response.get('error', {}).get('message', 'Unknown error')}")
     asyncio.run(_metrics())
 
 @cli.command()
-@click.option("--limit", default=10, help="Number of alerts to display.")
-@click.option("--status", type=click.Choice([s.value for s in AlertStatus]), default=None, help="Filter by alert status.")
-@click.option("--severity", type=click.Choice([s.value for s in AlertSeverity]), default=None, help="Filter by alert severity.")
-def alerts(limit, status, severity):
-    async def _alerts():
-        async with FrameworkAPIClient() as client:
-            params = {}
-            if status: params["status"] = status
-            if severity: params["severity"] = severity
-            params["limit"] = limit
-
-            response = await client.get('/api/alerts')
-            
-            if response.get('success'):
-                alerts_data = response['data']['alerts']
-                table = Table(title=f"System Alerts (Latest {limit})")
-                table.add_column("ID", style="cyan", no_wrap=True)
-                table.add_column("Rule", style="magenta")
-                table.add_column("Severity", style="red")
-                table.add_column("Status", style="yellow")
-                table.add_column("Timestamp", style="blue")
-                table.add_column("Message", style="green")
-
-                for alert in alerts_data:
-                    severity_color = "red" if alert['severity'] in ['critical', 'fatal'] else "yellow" if alert['severity'] == 'warning' else "blue"
-                    status_color = "green" if alert['status'] == 'resolved' else "red" if alert['status'] == 'active' else "yellow"
-                    table.add_row(
-                        alert['id'][:8] + "...",
-                        alert['rule_name'],
-                        f"[{severity_color}]{alert['severity']}[/{severity_color}]",
-                        f"[{status_color}]{alert['status']}[/{status_color}]",
-                        datetime.fromisoformat(alert['timestamp']).strftime('%Y-%m-%d %H:%M:%S'),
-                        alert['message']
-                    )
-                console.print(table)
-            else:
-                print_error(f"Failed to get alerts: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_alerts())
+def logs():
+    """Muestra los logs recientes del sistema (requiere endpoint de logs)."""
+    print_warning("This command requires a '/api/logs' endpoint which is not yet implemented in the REST API.")
+    print_info("Please check the system logs directly from the running services or framework.")
 
 @cli.command()
-@click.option("--backup-type", type=click.Choice([bt.value for bt in BackupType]), prompt="Backup Type", help="Type of backup to create (full, incremental)")
-@click.option("--parent-id", help="Parent backup ID for incremental backups")
-def create_backup(backup_type, parent_id):
-    async def _create_backup():
-        async with FrameworkAPIClient() as client:
-            data = {"backup_type": backup_type}
-            if backup_type == BackupType.INCREMENTAL.value:
-                if not parent_id:
-                    print_error("Parent backup ID is required for incremental backups.")
-                    return
-                data["parent_id"] = parent_id
-            
-            response = await client.post('/api/backup/create', data)
-            if response.get('success'):
-                backup_meta = response['data']['backup']
-                print_success(f"Backup '{backup_meta['backup_id']}' ({backup_meta['backup_type']}) initiated. Status: {backup_meta['status']}")
-            else:
-                print_error(f"Failed to create backup: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_create_backup())
+def dashboard():
+    """Abre el dashboard web en el navegador por defecto."""
+    dashboard_url = cli_config.get("dashboard_base_url")
+    if dashboard_url:
+        print_info(f"Opening dashboard at: {dashboard_url}")
+        click.launch(dashboard_url)
+    else:
+        print_error("Dashboard URL not configured. Please run 'agent-cli configure --dashboard-url <URL>'.")
+
 
 @cli.command()
-@click.argument("backup_id")
-def restore_backup(backup_id):
-    async def _restore_backup():
-        if not Confirm.ask(f"WARNING: This will restore the system to backup '{backup_id}'. Current state will be lost. Continue?", default=False):
-            print_info("Operation cancelled.")
-            return
+def start_dev_env():
+    """Inicia un entorno de desarrollo local (API + Dashboard + Framework)."""
+    async def _start_dev_env():
+        print_info("🚀 Starting local development environment...")
+        
+        framework = AgentFramework()
+        await framework.start()
+        
+        # Agentes de demostración
+        strategist = ExtendedAgentFactory.create_agent("agent.planning.strategist", "strategist", framework)
+        generator = ExtendedAgentFactory.create_agent("agent.build.code.generator", "generator", framework)
+        await strategist.start()
+        await generator.start()
 
-        async with FrameworkAPIClient() as client:
-            response = await client.post(f'/api/backup/{backup_id}/restore', {})
-            if response.get('success'):
-                print_success(f"System restoration from backup '{backup_id}' initiated. Please check system health.")
-            else:
-                print_error(f"Failed to restore backup: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_restore_backup())
+        # Iniciar Seguridad
+        security_manager = SecurityManager(framework)
+        await security_manager.initialize()
+
+        # Iniciar Persistencia
+        persistence_manager = PersistenceFactory.create_persistence_manager(
+            framework, PersistenceBackend.SQLITE, "framework_dev.db"
+        )
+        await persistence_manager.initialize()
+        framework.persistence_manager = persistence_manager # Link for demo
+
+        # Iniciar Monitoreo
+        monitoring_orchestrator = MonitoringOrchestrator(framework)
+        await monitoring_orchestrator.start_monitoring()
+
+        # Iniciar API
+        from interfaces.rest_api import FrameworkAPIServer # Import dynamically to avoid circular issues
+        api_server = FrameworkAPIServer(framework, security_manager, persistence_manager, host="0.0.0.0", port=8000)
+        api_runner = await api_server.start()
+
+        # Iniciar Dashboard
+        from interfaces.web_dashboard import DashboardServer # Import dynamically
+        dashboard_server = DashboardServer(framework, host="0.0.0.0", port=8080)
+        dashboard_runner = await dashboard_server.start()
+
+        print_success("Development environment started:")
+        print_info(f"  API: http://localhost:8000")
+        print_info(f"  Dashboard: http://localhost:8080")
+        print_info(f"  Agents running: {len(framework.registry.list_all_agents())}")
+        print_info("Press Ctrl+C to stop...")
+
+        try:
+            while True:
+                await asyncio.sleep(1) # Keep event loop running
+        except KeyboardInterrupt:
+            print_warning("\n🛑 Shutting down development environment...")
+        finally:
+            # Shutdown in reverse order
+            if dashboard_server:
+                await dashboard_server.stop()
+            if api_server:
+                await api_server.stop()
+            if monitoring_orchestrator:
+                await monitoring_orchestrator.stop_monitoring()
+            if persistence_manager:
+                await persistence_manager.close()
+            if framework:
+                await framework.stop()
+            print_success("Development environment stopped.")
+
+    asyncio.run(_start_dev_env())
+
 
 @cli.command()
-@click.option("--limit", default=10, help="Number of backup records to display.")
-def list_backups(limit):
-    async def _list_backups():
-        async with FrameworkAPIClient() as client:
-            response = await client.get('/api/backup/history')
-            if response.get('success'):
-                backups = response['data']['history']
-                table = Table(title=f"Backup History (Latest {limit})")
-                table.add_column("ID", style="cyan", no_wrap=True)
-                table.add_column("Type", style="magenta")
-                table.add_column("Status", style="yellow")
-                table.add_column("Created At", style="blue")
-                table.add_column("Size (Bytes)", style="green")
-                table.add_column("Parent ID", style="dim")
-
-                for backup in backups[:limit]:
-                    status_color = "green" if backup['status'] == BackupStatus.COMPLETED.value else "red" if backup['status'] == BackupStatus.FAILED.value else "yellow"
-                    table.add_row(
-                        backup['backup_id'][:8] + "...",
-                        backup['backup_type'],
-                        f"[{status_color}]{backup['status']}[/{status_color}]",
-                        datetime.fromisoformat(backup['created_at']).strftime('%Y-%m-%d %H:%M:%S'),
-                        str(backup['size_bytes']),
-                        backup['parent_backup_id'][:8] + "..." if backup['parent_backup_id'] else ""
-                    )
-                console.print(table)
-            else:
-                print_error(f"Failed to list backups: {response.get('error', {}).get('message', 'Unknown error')}")
-    asyncio.run(_list_backups())
-
-@cli.command()
-@click.option("--env", type=click.Choice([e.value for e in DeploymentEnvironment]), prompt="Deployment Environment", help="Environment to deploy to")
-@click.option("--strategy", type=click.Choice([s.value for s in DeploymentStrategy]), prompt="Deployment Strategy", help="Strategy to use for deployment")
-@click.option("--output-dir", prompt="Output Directory", help="Directory to save deployment files")
-@click.option("--config-file", type=click.Path(exists=True), help="Optional YAML config file for detailed settings")
-def deploy(env, strategy, output_dir, config_file):
+@click.option('--environment', type=click.Choice([e.value for e in DeploymentEnvironment]), default='development', help='Deployment environment.')
+@click.option('--strategy', type=click.Choice([s.value for s in DeploymentStrategy]), default='standalone', help='Deployment strategy.')
+@click.option('--output-dir', default='./deployment_output', help='Output directory for deployment files.')
+def deploy(environment, strategy, output_dir):
+    """Genera archivos de deployment para un entorno y estrategia dados."""
     async def _deploy():
-        deploy_config = {}
-        if config_file:
-            with open(config_file, 'r') as f:
-                deploy_config = yaml.safe_load(f)
-
-        framework_builder = FrameworkBuilder()
-        full_framework_config = framework_builder.create_sample_config() # Get default structure
+        print_info(f"Preparing deployment for '{environment}' environment with '{strategy}' strategy...")
+        orchestrator = DeploymentOrchestrator()
         
-        # Merge CLI options and config file into a DeployConfig structure
-        final_config_data = {
-            "environment": env,
-            "strategy": strategy,
-            "framework_config": deploy_config.get("framework_config", full_framework_config.framework_config),
-            "security_config": deploy_config.get("security_config", {}),
-            "persistence_config": deploy_config.get("persistence_config", {}),
-            "api_config": deploy_config.get("api_config", {}),
-            "agents_config": deploy_config.get("agents_config", []),
-            "monitoring_config": deploy_config.get("monitoring_config", {}),
-            "scaling_config": deploy_config.get("scaling_config", {}),
-        }
+        # Placeholder for real framework/security/persistence configs
+        # In a real scenario, these would come from a more robust config system or actual running services
+        framework_config_data = {"name": "MyDeployedFramework", "version": "1.0.0"}
+        security_config_data = {"authentication_enabled": True, "jwt_secret": "my_secret_key"}
+        persistence_config_data = {"backend": "sqlite", "connection_string": "deployed_framework.db"}
+        api_config_data = {"host": "0.0.0.0", "port": 8000}
+        monitoring_config_data = {"enable_monitoring": True}
+        agents_config_data = [
+            {"namespace": "agent.planning", "name": "planner", "auto_start": True},
+            {"namespace": "agent.build", "name": "builder", "auto_start": True}
+        ]
+        scaling_config_data = {"min_agents": 1, "max_agents": 5}
+
+
+        config = orchestrator.create_deployment_config(
+            DeploymentEnvironment(environment),
+            DeploymentStrategy(strategy),
+            framework_config=framework_config_data,
+            security_config=security_config_data,
+            persistence_config=persistence_config_data,
+            api_config=api_config_data,
+            monitoring_config=monitoring_config_data,
+            agents_config=agents_config_data,
+            scaling_config=scaling_config_data
+        )
         
-        # Ensure enums are correctly set
-        final_config_data["environment"] = DeploymentEnvironment(final_config_data["environment"])
-        final_config_data["strategy"] = DeploymentStrategy(final_config_data["strategy"])
-
-        deployment_config = DeploymentConfig(**final_config_data)
-
-        # We need a framework instance to pass to the DeploymentOrchestrator, even if it's not fully running
-        temp_framework = AgentFramework() 
-        orchestrator = DeploymentOrchestrator(temp_framework)
+        success = await orchestrator.deploy(config, Path(output_dir))
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True
-        ) as progress:
-            task = progress.add_task(f"[cyan]Deploying to {env} with {strategy}...", total=100)
-            
-            # Simulate progress
-            for i in range(1, 101):
-                progress.update(task, advance=1)
-                await asyncio.sleep(0.01) # Small delay for visualization
+        if success:
+            print_success(f"Deployment files generated successfully in '{output_dir}' for {environment}/{strategy}.")
+            if strategy == 'docker':
+                print_info(f"  Run: cd {output_dir} && docker-compose up -d")
+            elif strategy == 'kubernetes':
+                print_info(f"  Run: cd {output_dir} && kubectl apply -f .")
+            elif strategy == 'standalone':
+                print_info(f"  Review {output_dir}/run.sh for execution instructions.")
+        else:
+            print_error("Deployment generation failed.")
 
-            success = await orchestrator.deploy(deployment_config, output_dir)
-            
-            if success:
-                print_success(f"Deployment files generated successfully in {output_dir}")
-                print_info("Next steps: Review generated files and run the deploy script.")
-            else:
-                print_error("Deployment failed. Check logs for details.")
     asyncio.run(_deploy())
 
 @cli.command()
-def list_deployments():
-    async def _list_deployments():
-        # Instantiate without a full framework, as this is just to list records
-        temp_framework = AgentFramework() 
-        orchestrator = DeploymentOrchestrator(temp_framework) 
-
-        deployments = orchestrator.list_deployments()
-        if not deployments:
-            print_info("No deployments found.")
-            return
+@click.option('--type', type=click.Choice(['full', 'incremental']), default='full', help='Type of backup to perform.')
+@click.option('--storage', type=click.Choice([s.value for s in PersistenceBackend]), default='local', help='Storage backend for the backup.')
+def backup(type, storage):
+    """Realiza un backup del estado del framework."""
+    async def _backup():
+        print_info(f"Initiating {type} backup to {storage} storage...")
         
-        table = Table(title="Framework Deployments")
-        table.add_column("ID", style="cyan", no_wrap=True)
-        table.add_column("Environment", style="magenta")
-        table.add_column("Strategy", style="green")
-        table.add_column("Status", style="yellow")
-        table.add_column("Deployed At", style="blue")
-        table.add_column("Output Dir", style="dim")
+        # Need a running framework instance to perform backup
+        # For CLI, we can either connect to a running one or start a minimal one
+        # For simplicity in CLI, we'll simulate or assume connection to persistence
+        
+        # This part assumes PersistenceManager is already configured/running or can be initialized minimally
+        # In a real CLI, it would connect to the running framework's PersistenceManager.
+        # For this demo, let's just make sure the DisasterRecoveryOrchestrator can function.
+        
+        # To make this command functional without a full running framework,
+        # we'd need the PersistenceManager to be directly instantiable and configurable via CLI options,
+        # or have the CLI connect to a running API that exposes backup functionality.
+        # For now, let's connect to the persistence manager if it was started by `start_dev_env`
+        # or create a dummy one for demonstration purposes.
 
-        for dep in deployments:
-            status_color = "green" if dep.status == 'COMPLETED' else "red" if dep.status == 'FAILED' else "yellow"
-            table.add_row(
-                dep.deployment_id[:8] + "...",
-                dep.config.environment.value,
-                dep.config.strategy.value,
-                f"[{status_color}]{dep.status}[/{status_color}]",
-                dep.deployed_at.strftime('%Y-%m-%d %H:%M:%S'),
-                str(dep.output_dir)
-            )
-        console.print(table)
-    asyncio.run(_list_deployments())
+        # Simplified approach for demo: Assume persistence config
+        temp_framework = AgentFramework() # Minimal framework for DR Orchestrator
+        persistence_manager = PersistenceFactory.create_persistence_manager(
+            temp_framework, PersistenceBackend.SQLITE, "framework_cli_temp.db"
+        )
+        await persistence_manager.initialize() # Initialize a dummy persistence
 
-async def system_status_interactive():
-    async with FrameworkAPIClient() as client:
+        dr_orchestrator = DisasterRecoveryOrchestrator(temp_framework, persistence_manager)
+
         try:
-            response = await client.get('/api/health')
-            
-            if response.get('success'):
-                data = response['data']
-                
-                status_icon = "🟢" if data['status'] == 'healthy' else "🔴"
-                console.print(f"{status_icon} System Status: {data['status']}")
-                console.print(f"📊 Total Agents: {data['framework']['total_agents']}")
-                console.print(f"✅ Active Agents: {data['framework']['active_agents']}")
+            if type == 'full':
+                result = await dr_orchestrator.backup_engine.perform_full_backup()
+            elif type == 'incremental':
+                result = await dr_orchestrator.backup_engine.perform_incremental_backup()
             else:
-                print_error("Failed to get system status")
-                
-        except Exception as e:
-            print_error(f"System unreachable: {e}")
+                print_error("Invalid backup type.")
+                return
+
+            if result and result.status == "completed":
+                print_success(f"Backup completed: {result.backup_id} (Size: {result.size_bytes} bytes, Path: {result.file_path})")
+            else:
+                print_error(f"Backup failed: {result.status if result else 'Unknown error'}")
+        finally:
+            await persistence_manager.close()
+            await temp_framework.stop() # Clean up dummy framework
+
+    asyncio.run(_backup())
+
 
 @cli.command()
-def interactive():
-    print_info("Starting interactive monitoring mode... Press Ctrl+C to exit.")
-    try:
-        while True:
-            asyncio.run(system_status_interactive())
-            asyncio.run(list_agents_interactive())
-            asyncio.run(alerts_interactive())
-            asyncio.sleep(5) 
-    except KeyboardInterrupt:
-        print_info("\nInteractive mode stopped.")
+@click.argument('backup_id', required=False)
+@click.option('--point-in-time', help='Timestamp (YYYY-MM-DD HH:MM:SS) to restore to.')
+@click.option('--source-path', help='Optional path to a specific backup file or directory.')
+def restore(backup_id, point_in_time, source_path):
+    """Restaura el estado del framework desde un backup."""
+    async def _restore():
+        print_info("Initiating restore operation...")
+        
+        # Similar to backup, this needs a PersistenceManager context
+        temp_framework = AgentFramework()
+        persistence_manager = PersistenceFactory.create_persistence_manager(
+            temp_framework, PersistenceBackend.SQLITE, "framework_cli_temp.db"
+        )
+        await persistence_manager.initialize()
 
-async def list_agents_interactive():
-    async with FrameworkAPIClient() as client:
-        response = await client.get('/api/agents')
-        if response.get('success'):
-            agents = response['data']['agents']
-            
-            tree = Tree("🤖 Agents")
-            for agent in agents:
-                status_icon = "🟢" if agent['status'] == 'active' else "🔴"
-                tree.add(f"{status_icon} {agent['name']} ({agent['namespace']}) - {agent['status']}")
-            
-            console.print(tree)
-        else:
-            print_error("Failed to list agents")
+        dr_orchestrator = DisasterRecoveryOrchestrator(temp_framework, persistence_manager)
 
-async def alerts_interactive():
-    async with FrameworkAPIClient() as client:
-        response = await client.get('/api/alerts')
-        if response.get('success'):
-            alerts_data = response['data']['alerts']
-            if alerts_data:
-                alert_panel_content = "[bold red]🚨 Active Alerts:[/bold red]\n"
-                for alert in alerts_data:
-                    if alert['status'] == AlertStatus.ACTIVE.value:
-                        timestamp = datetime.fromisoformat(alert['timestamp']).strftime('%H:%M:%S')
-                        alert_panel_content += f"  - [{alert['severity'].lower()}]{alert['severity']}:[/] {alert['message']} ([dim]{timestamp}[/dim])\n"
-                if alert_panel_content != "[bold red]🚨 Active Alerts:[/bold red]\n":
-                    console.print(Panel(alert_panel_content, border_style="red"))
-                else:
-                    print_info("No active alerts.")
+        try:
+            if backup_id:
+                result = await dr_orchestrator.backup_engine.restore_backup(backup_id)
+            elif point_in_time:
+                try:
+                    dt = datetime.strptime(point_in_time, '%Y-%m-%d %H:%M:%S')
+                    result = await dr_orchestrator.backup_engine.restore_to_point_in_time(dt)
+                except ValueError:
+                    print_error("Invalid point-in-time format. Use YYYY-MM-DD HH:MM:SS.")
+                    return
+            elif source_path:
+                print_warning("Restoring from a specific path bypasses backup history. Use with caution.")
+                result = await dr_orchestrator.backup_engine.restore_from_path(source_path)
             else:
-                print_info("No alerts found.")
-        else:
-            print_error("Failed to retrieve alerts.")
+                print_error("Please provide either a --backup-id, --point-in-time, or --source-path for restore.")
+                return
+
+            if result and result["success"]:
+                print_success(f"Restore completed successfully: {result.get('message', '')}")
+            else:
+                print_error(f"Restore failed: {result.get('error', 'Unknown error')}")
+        finally:
+            await persistence_manager.close()
+            await temp_framework.stop()
+
+    asyncio.run(_restore())
+
+@cli.command()
+@click.option('--limit', type=int, default=10, help='Number of recent backups to list.')
+def list_backups(limit):
+    """Lista los backups recientes."""
+    async def _list_backups():
+        print_info("Fetching backup history...")
+        
+        temp_framework = AgentFramework()
+        persistence_manager = PersistenceFactory.create_persistence_manager(
+            temp_framework, PersistenceBackend.SQLITE, "framework_cli_temp.db"
+        )
+        await persistence_manager.initialize()
+
+        dr_orchestrator = DisasterRecoveryOrchestrator(temp_framework, persistence_manager)
+
+        try:
+            history = dr_orchestrator.backup_engine.get_backup_history()
+            if not history:
+                print_info("No backups found.")
+                return
+
+            table = Table(title="Backup History", show_lines=True)
+            table.add_column("ID", style="cyan")
+            table.add_column("Type", style="magenta")
+            table.add_column("Status", style="yellow")
+            table.add_column("Created At", style="green")
+            table.add_column("Size (Bytes)", style="blue")
+            table.add_column("Path", style="dim")
+
+            for backup in history[:limit]:
+                table.add_row(
+                    backup.backup_id[:8] + "...",
+                    backup.backup_type.value,
+                    backup.status.value,
+                    backup.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    str(backup.size_bytes),
+                    backup.file_path
+                )
+            console.print(table)
+        finally:
+            await persistence_manager.close()
+            await temp_framework.stop()
+
+    asyncio.run(_list_backups())
+
+# ================================\
+# INTERACTIVE MODE (Future Expansion)
+# ================================\
+
+# This section is for a more advanced interactive shell.
+# Currently, `start_dev_env` provides a basic long-running process.
+
+# async def list_agents_interactive():
+#     """List agents in interactive mode"""
+#     async with FrameworkAPIClient() as client:
+#         response = await client.get('/api/agents')
+#         if response.get('success'):
+#             agents = response['data']
+#             if not agents:
+#                 console.print("[yellow]No agents registered.[/yellow]")
+#                 return
+            
+#             tree = Tree("🤖 Agents")
+#             for agent in agents:
+#                 status_icon = "🟢" if agent['status'] == 'active' else "🔴"
+#                 tree.add(f"{status_icon} {agent['name']} ({agent['namespace']})")
+            
+#             console.print(tree)
+#         else:
+#             print_error("Failed to list agents")
+
+# async def system_status_interactive():
+#     """Show system status in interactive mode"""
+#     async with FrameworkAPIClient() as client:
+#         try:
+#             response = await client.get('/api/health')
+            
+#             if response.get('success'):
+#                 data = response['data']
+                
+#                 status_icon = "🟢" if data['status'] == 'healthy' else "🔴"
+#                 console.print(f"{status_icon} System Status: {data['status']}")
+#                 console.print(f"📊 Total Agents: {data['framework']['total_agents']}")
+#                 console.print(f"✅ Active Agents: {data['framework']['active_agents']}")
+#             else:
+#                 print_error("Failed to get system status")
+                
+#         except Exception as e:
+#             print_error(f"System unreachable: {e}")
+
+# ================================\
+# MAIN ENTRY POINT
+# ================================\
 
 if __name__ == '__main__':
     try:
