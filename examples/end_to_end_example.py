@@ -9,16 +9,16 @@ from datetime import datetime
 from pathlib import Path
 
 # Imports de todos los componentes del framework
-from autonomous_agent_framework import AgentFramework
-from specialized_agents import ExtendedAgentFactory
-from security_system import SecurityManager, Permission, AuthenticationMethod
-from persistence_system import PersistenceFactory, PersistenceBackend
-from rest_api import FrameworkAPIServer
-from web_dashboard import DashboardServer
-from monitoring_system import MonitoringOrchestrator
-from backup_recovery_system import DisasterRecoveryOrchestrator
-from deployment_system import DeploymentOrchestrator, DeploymentEnvironment, DeploymentStrategy
-from plugin_system import PluginManager, ExternalAPIPlugin
+from core.autonomous_agent_framework import AgentFramework
+from core.specialized_agents import ExtendedAgentFactory
+from core.security_system import SecurityManager, Permission, AuthenticationMethod
+from core.persistence_system import PersistenceFactory, PersistenceBackend
+from interfaces.rest_api import FrameworkAPIServer
+from interfaces.web_dashboard import DashboardServer
+from core.monitoring_system import MonitoringOrchestrator
+from core.backup_recovery_system import DisasterRecoveryOrchestrator
+from systems.deployment_system import DeploymentOrchestrator, DeploymentEnvironment, DeploymentStrategy
+from systems.plugin_system import PluginManager, ExternalAPIPlugin
 
 # ================================
 # COMPLETE E2E SCENARIO
@@ -433,7 +433,7 @@ class E2EFrameworkDemo:
         print("   ✅ Progress tracked")
         
         # 4.8 Almacenar recursos del proyecto
-        from autonomous_agent_framework import AgentResource, ResourceType
+        from core.autonomous_agent_framework import AgentResource, ResourceType
         
         project_resource = AgentResource(
             type=ResourceType.CODE,
@@ -465,7 +465,7 @@ class E2EFrameworkDemo:
         # 5.1 Configurar alertas personalizadas
         print("🚨 Setting up custom alerts...")
         
-        from monitoring_system import AlertRule, AlertSeverity
+        from core.monitoring_system import AlertRule, AlertSeverity
         
         # Alerta para muchos agentes inactivos
         custom_alert = AlertRule(
@@ -539,7 +539,7 @@ class E2EFrameworkDemo:
         print("🔄 Making changes for incremental backup...")
         
         # Crear un nuevo recurso
-        from autonomous_agent_framework import AgentResource, ResourceType
+        from core.autonomous_agent_framework import AgentResource, ResourceType
         temp_resource = AgentResource(
             type=ResourceType.DATA,
             name="temp_demo_data",
@@ -588,7 +588,7 @@ class E2EFrameworkDemo:
         
         # 7.1 Iniciar API server
         print("🌐 Starting REST API server...")
-        from rest_api import FrameworkAPIServer
+        from interfaces.rest_api import FrameworkAPIServer
         
         self.api_server = FrameworkAPIServer(self.framework, host="localhost", port=8000)
         api_runner = await self.api_server.start()
@@ -596,7 +596,7 @@ class E2EFrameworkDemo:
         
         # 7.2 Iniciar dashboard
         print("📊 Starting web dashboard...")
-        from web_dashboard import DashboardServer
+        from interfaces.web_dashboard import DashboardServer
         
         self.dashboard_server = DashboardServer(self.framework, host="localhost", port=8080)
         dashboard_runner = await self.dashboard_server.start()

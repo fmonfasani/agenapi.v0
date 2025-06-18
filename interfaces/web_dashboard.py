@@ -13,8 +13,8 @@ from aiohttp import web, WSMsgType
 import aiohttp_cors
 import weakref
 
-from autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus, MessageType
-from framework_config_utils import MetricsCollector
+from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus, MessageType
+from systems.framework_config_utils import MetricsCollector
 
 # ================================
 # DASHBOARD SERVER
@@ -806,8 +806,8 @@ async def dashboard_demo():
     logging.basicConfig(level=logging.INFO)
     
     # Crear framework
-    from autonomous_agent_framework import AgentFramework
-    from specialized_agents import ExtendedAgentFactory
+    from core.autonomous_agent_framework import AgentFramework
+    from core.specialized_agents import ExtendedAgentFactory
     
     framework = AgentFramework()
     await framework.start()
@@ -859,7 +859,7 @@ async def dashboard_demo():
             )
             
             # Crear recursos ocasionalmente
-            from autonomous_agent_framework import AgentResource, ResourceType
+            from core.autonomous_agent_framework import AgentResource, ResourceType
             demo_resource = AgentResource(
                 type=ResourceType.CODE,
                 name=f"demo_resource_{datetime.now().strftime('%H%M%S')}",

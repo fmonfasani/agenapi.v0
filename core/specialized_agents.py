@@ -2,7 +2,7 @@
 specialized_agents.py - Implementaciones específicas de agentes por namespace
 """
 
-from autonomous_agent_framework import BaseAgent, AgentCapability, AgentResource, ResourceType
+from core.autonomous_agent_framework import BaseAgent, AgentCapability, AgentResource, ResourceType
 from typing import Dict, Any, List
 import asyncio
 import json
@@ -753,7 +753,7 @@ async def advanced_example():
     logging.basicConfig(level=logging.INFO)
     
     # Crear framework
-    from autonomous_agent_framework import AgentFramework
+    from core.autonomous_agent_framework import AgentFramework
     framework = AgentFramework()
     await framework.start()
     

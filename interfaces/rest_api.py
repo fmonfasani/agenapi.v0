@@ -13,11 +13,11 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 import aiohttp_swagger
 
-from autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus, MessageType, AgentResource, ResourceType
-from specialized_agents import ExtendedAgentFactory
-from security_system import SecurityManager, Permission, SecurityLevel, AuthenticationMethod
-from persistence_system import PersistenceManager, PersistenceFactory, PersistenceBackend
-from framework_config_utils import MetricsCollector
+from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus, MessageType, AgentResource, ResourceType
+from core.specialized_agents import ExtendedAgentFactory
+from core.security_system import SecurityManager, Permission, SecurityLevel, AuthenticationMethod
+from core.persistence_system import PersistenceManager, PersistenceFactory, PersistenceBackend
+from systems.framework_config_utils import MetricsCollector
 
 # ================================
 # API MODELS AND SCHEMAS

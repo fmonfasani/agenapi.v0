@@ -23,13 +23,13 @@ from rich.syntax import Syntax
 from rich.tree import Tree
 
 # Imports del framework
-from autonomous_agent_framework import AgentFramework
-from specialized_agents import ExtendedAgentFactory
-from security_system import SecurityManager, Permission, AuthenticationMethod
-from persistence_system import PersistenceFactory, PersistenceBackend
-from deployment_system import DeploymentOrchestrator, DeploymentEnvironment, DeploymentStrategy
-from backup_recovery_system import DisasterRecoveryOrchestrator
-from monitoring_system import MonitoringOrchestrator
+from core.autonomous_agent_framework import AgentFramework
+from core.specialized_agents import ExtendedAgentFactory
+from core.security_system import SecurityManager, Permission, AuthenticationMethod
+from core.persistence_system import PersistenceFactory, PersistenceBackend
+from systems.deployment_system import DeploymentOrchestrator, DeploymentEnvironment, DeploymentStrategy
+from core.backup_recovery_system import DisasterRecoveryOrchestrator
+from core.monitoring_system import MonitoringOrchestrator
 
 console = Console()
 

@@ -16,10 +16,10 @@ from enum import Enum
 import tempfile
 import shutil
 
-from autonomous_agent_framework import AgentFramework
-from security_system import SecurityManager
-from persistence_system import PersistenceManager, PersistenceBackend
-from rest_api import FrameworkAPIServer
+from core.autonomous_agent_framework import AgentFramework
+from core.security_system import SecurityManager
+from core.persistence_system import PersistenceManager, PersistenceBackend
+from interfaces.rest_api import FrameworkAPIServer
 
 # ================================
 # DEPLOYMENT MODELS

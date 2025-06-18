@@ -18,7 +18,7 @@ from email.mime.text import MimeText
 from email.mime.multipart import MimeMultipart
 import aiohttp
 
-from autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus
+from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus
 
 # ================================
 # MONITORING MODELS
@@ -992,8 +992,8 @@ async def monitoring_demo():
     print("="*60)
     
     # Crear framework y agentes
-    from autonomous_agent_framework import AgentFramework
-    from specialized_agents import ExtendedAgentFactory
+    from core.autonomous_agent_framework import AgentFramework
+    from core.specialized_agents import ExtendedAgentFactory
     
     framework = AgentFramework()
     await framework.start()

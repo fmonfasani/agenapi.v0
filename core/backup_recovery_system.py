@@ -20,8 +20,8 @@ import boto3
 from azure.storage.blob import BlobServiceClient
 import paramiko
 
-from autonomous_agent_framework import AgentFramework, BaseAgent, AgentResource
-from persistence_system import PersistenceManager
+from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentResource
+from core.persistence_system import PersistenceManager
 
 # ================================
 # BACKUP MODELS
@@ -729,7 +729,7 @@ class RecoveryEngine:
         
     async def _restore_agents(self, agents_data: Dict[str, Any]):
         """Restaurar agentes"""
-        from specialized_agents import ExtendedAgentFactory
+        from core.specialized_agents import ExtendedAgentFactory
         
         for agent_id, agent_data in agents_data.items():
             try:
@@ -754,7 +754,7 @@ class RecoveryEngine:
                 
     async def _restore_resources(self, resources_data: Dict[str, Any]):
         """Restaurar recursos"""
-        from autonomous_agent_framework import AgentResource, ResourceType
+        from core.autonomous_agent_framework import AgentResource, ResourceType
         
         for resource_id, resource_data in resources_data.items():
             try:
@@ -789,7 +789,7 @@ class RecoveryEngine:
         for agent_id, messages in messages_data.items():
             try:
                 for msg_data in messages:
-                    from autonomous_agent_framework import AgentMessage, MessageType
+                    from core.autonomous_agent_framework import AgentMessage, MessageType
                     
                     message = AgentMessage(
                         id=msg_data["id"],
@@ -1016,9 +1016,9 @@ async def backup_recovery_demo():
     print("="*60)
     
     # Crear framework y componentes
-    from autonomous_agent_framework import AgentFramework
-    from specialized_agents import ExtendedAgentFactory
-    from persistence_system import PersistenceFactory, PersistenceBackend
+    from core.autonomous_agent_framework import AgentFramework
+    from core.specialized_agents import ExtendedAgentFactory
+    from core.persistence_system import PersistenceFactory, PersistenceBackend
     
     framework = AgentFramework()
     await framework.start()
@@ -1038,7 +1038,7 @@ async def backup_recovery_demo():
     await generator.start()
     
     # Crear algunos recursos
-    from autonomous_agent_framework import AgentResource, ResourceType
+    from core.autonomous_agent_framework import AgentResource, ResourceType
     test_resource = AgentResource(
         type=ResourceType.CODE,
         name="demo_code",

@@ -15,7 +15,7 @@ import pickle
 import logging
 from pathlib import Path
 
-from autonomous_agent_framework import AgentMessage, AgentResource, BaseAgent, AgentStatus
+from core.autonomous_agent_framework import AgentMessage, AgentResource, BaseAgent, AgentStatus
 
 # ================================
 # PERSISTENCE INTERFACES
@@ -293,7 +293,7 @@ class SQLitePersistence(PersistenceInterface):
                 rows = await cursor.fetchall()
                 
                 for row in rows:
-                    from autonomous_agent_framework import MessageType
+                    from core.autonomous_agent_framework import MessageType
                     message = AgentMessage(
                         id=row["id"],
                         sender_id=row["sender_id"],
@@ -348,7 +348,7 @@ class SQLitePersistence(PersistenceInterface):
                 row = await cursor.fetchone()
                 
                 if row:
-                    from autonomous_agent_framework import ResourceType
+                    from core.autonomous_agent_framework import ResourceType
                     return AgentResource(
                         id=row["id"],
                         type=ResourceType(row["type"]),
@@ -548,7 +548,7 @@ class JSONFilePersistence(PersistenceInterface):
             
             # Convertir a objetos AgentMessage
             for msg_data in agent_messages:
-                from autonomous_agent_framework import MessageType
+                from core.autonomous_agent_framework import MessageType
                 message = AgentMessage(
                     id=msg_data["id"],
                     sender_id=msg_data["sender_id"],
@@ -595,7 +595,7 @@ class JSONFilePersistence(PersistenceInterface):
         try:
             resource_data = self.data["resources"].get(resource_id)
             if resource_data:
-                from autonomous_agent_framework import ResourceType
+                from core.autonomous_agent_framework import ResourceType
                 return AgentResource(
                     id=resource_data["id"],
                     type=ResourceType(resource_data["type"]),
@@ -742,7 +742,7 @@ class PersistenceManager:
         
     async def _restore_agents(self, framework, agent_states: Dict[str, Any]):
         """Restaurar agentes desde estado persistido"""
-        from specialized_agents import ExtendedAgentFactory
+        from core.specialized_agents import ExtendedAgentFactory
         
         for agent_id, agent_config in agent_states.items():
             try:
@@ -852,8 +852,8 @@ async def persistence_demo():
     logging.basicConfig(level=logging.INFO)
     
     # Crear framework con persistencia
-    from autonomous_agent_framework import AgentFramework
-    from specialized_agents import ExtendedAgentFactory
+    from core.autonomous_agent_framework import AgentFramework
+    from core.specialized_agents import ExtendedAgentFactory
     
     # Configurar persistencia
     persistence_manager = PersistenceFactory.create_persistence_manager(
@@ -898,7 +898,7 @@ async def persistence_demo():
         await agent1.send_message(agent2.id, "test.message", {"data": "persistence demo"})
         
         # Crear recurso
-        from autonomous_agent_framework import AgentResource, ResourceType
+        from core.autonomous_agent_framework import AgentResource, ResourceType
         test_resource = AgentResource(
             type=ResourceType.DATA,
             name="demo_resource",

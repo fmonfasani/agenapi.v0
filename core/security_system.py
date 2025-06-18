@@ -15,7 +15,7 @@ import logging
 import json
 from pathlib import Path
 
-from autonomous_agent_framework import BaseAgent, AgentMessage
+from core.autonomous_agent_framework import BaseAgent, AgentMessage
 
 # ================================
 # SECURITY ENUMS AND MODELS

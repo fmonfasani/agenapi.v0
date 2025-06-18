@@ -161,7 +161,7 @@ class ConfigManager:
             errors.append("Duplicate agent names found")
             
         # Validar namespaces
-        from specialized_agents import ExtendedAgentFactory
+        from core.specialized_agents import ExtendedAgentFactory
         available_namespaces = ExtendedAgentFactory.list_available_namespaces()
         
         for agent in config.agents:
@@ -190,8 +190,8 @@ class FrameworkBuilder:
         
     async def build_framework(self):
         """Construir framework con configuración"""
-        from autonomous_agent_framework import AgentFramework
-        from specialized_agents import ExtendedAgentFactory
+        from core.autonomous_agent_framework import AgentFramework
+        from core.specialized_agents import ExtendedAgentFactory
         
         # Crear framework
         framework = AgentFramework()

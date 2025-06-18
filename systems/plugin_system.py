@@ -13,7 +13,7 @@ from pathlib import Path
 import logging
 import asyncio
 
-from autonomous_agent_framework import BaseAgent, AgentCapability
+from core.autonomous_agent_framework import BaseAgent, AgentCapability
 
 # ================================
 # PLUGIN SYSTEM CORE
@@ -165,7 +165,7 @@ class PluginManager:
         agent_classes = plugin.get_agent_classes()
         for namespace, agent_class in agent_classes.items():
             # Registrar en el factory extendido
-            from specialized_agents import ExtendedAgentFactory
+            from core.specialized_agents import ExtendedAgentFactory
             ExtendedAgentFactory.AGENT_CLASSES[namespace] = agent_class
             logging.info(f"Registered agent class: {namespace}")
             
