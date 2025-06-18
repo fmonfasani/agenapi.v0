@@ -1,3 +1,8 @@
+"""
+Framework para Agentes Autónomos Interoperables
+Versión: 0.0.1
+"""
+
 import asyncio
 import uuid
 import json
@@ -7,551 +12,607 @@ from dataclasses import dataclass, field
 from enum import Enum
 from abc import ABC, abstractmethod
 from datetime import datetime
-import weakref
+import weakref # Todavía puede ser necesario si BaseAgent usa weakref internamente
 from contextlib import asynccontextmanager
 import traceback
 
-# logging configuration
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Importar las nuevas clases/módulos de `core`
+from core.models import AgentStatus, MessageType, ResourceType, AgentMessage, AgentResource, AgentCapability # <--- CAMBIO CLAVE
+from core.registry import AgentRegistry # <--- CAMBIO CLAVE
 
-# CORE FRAMEWORK CLASSES
-# ================================
-
-class AgentStatus(Enum):
-    INITIALIZING = "initializing"
-    ACTIVE = "active"
-    BUSY = "busy"
-    IDLE = "idle"
-    ERROR = "error"
-    TERMINATED = "terminated"
-    SUSPENDED = "suspended"
-
-class MessageType(Enum):
-    COMMAND = "command"
-    REQUEST = "request"
-    RESPONSE = "response"
-    EVENT = "event"
-    HEARTBEAT = "heartbeat"
-    ERROR = "error"
-
-class ResourceType(Enum):
-    CODE = "code"
-    INFRA = "infra"
-    WORKFLOW = "workflow"
-    UI = "ui"
-    DATA = "data"
-    TEST = "test"
-    SECURITY = "security"
-    RELEASE = "release"
-
-@dataclass
-class AgentMessage:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    sender_id: str = ""
-    receiver_id: str = ""
-    message_type: MessageType = MessageType.INFO
-    action: str = ""
-    payload: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.now)
-    status: str = "sent" # sent, delivered, read, failed
-    correlation_id: Optional[str] = None # Para correlacionar requests con responses
-    expires_at: Optional[datetime] = None
-    
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "sender_id": self.sender_id,
-            "receiver_id": self.receiver_id,
-            "message_type": self.message_type.value,
-            "action": self.action,
-            "payload": self.payload,
-            "timestamp": self.timestamp.isoformat(),
-            "status": self.status,
-            "correlation_id": self.correlation_id,
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
-        return cls(
-            id=data["id"],
-            sender_id=data["sender_id"],
-            receiver_id=data["receiver_id"],
-            message_type=MessageType(data["message_type"]),
-            action=data["action"],
-            payload=data["payload"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
-            status=data["status"],
-            correlation_id=data.get("correlation_id"),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
-        )
-
-@dataclass
-class AgentResource:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    name: str = ""
-    namespace: str = "" # e.g., "resource.data.user_profiles"
-    type: ResourceType = ResourceType.DATA
-    data: Any = None # Puede ser un diccionario, una cadena, etc.
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    owner_agent_id: Optional[str] = None
-    version: str = "1.0.0"
-    tags: Dict[str, str] = field(default_factory=dict)
-    permissions: List[str] = field(default_factory=list) # e.g., ["read", "write"]
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "namespace": self.namespace,
-            "type": self.type.value,
-            "data": self.data,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "owner_agent_id": self.owner_agent_id,
-            "version": self.version,
-            "tags": self.tags,
-            "permissions": self.permissions
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
-        return cls(
-            id=data["id"],
-            name=data["name"],
-            namespace=data["namespace"],
-            type=ResourceType(data["type"]),
-            data=data["data"],
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]),
-            owner_agent_id=data["owner_agent_id"],
-            version=data["version"],
-            tags=data["tags"],
-            permissions=data["permissions"]
-        )
-
-@dataclass
-class AgentCapability:
-    name: str
-    namespace: str # e.g., "agent.skill.coding.generate_code"
-    description: str
-    input_schema: Dict[str, Any]
-    output_schema: Dict[str, Any]
-    handler: Callable # Función asíncrona que implementa la capacidad
-    permissions_required: Set[str] = field(default_factory=set) # Permisos necesarios para ejecutar esta capacidad
+# ================================\
+# ABSTRACT BASE CLASSES (ABCs)
+# ================================\
 
 class BaseAgent(ABC):
+    """
+    Clase base abstracta para todos los agentes.
+    Define la interfaz mínima que debe implementar cualquier agente.
+    """
     def __init__(self, namespace: str, name: str, framework: 'AgentFramework'):
-        self.id: str = str(uuid.uuid4())
-        self.namespace: str = namespace
-        self.name: str = name
-        self.status: AgentStatus = AgentStatus.INITIALIZING
-        self.created_at: datetime = datetime.now()
-        self.last_active_at: datetime = datetime.now()
-        self.framework: 'AgentFramework' = weakref.proxy(framework) # Evitar referencia circular
+        self.id = str(uuid.uuid4())
+        self.namespace = namespace # e.g., "agent.planning", "agent.development.code"
+        self.name = name # Nombre único dentro del namespace
+        self.status = AgentStatus.INITIALIZING
+        self.framework: 'AgentFramework' = weakref.proxy(framework) # Usar weakref para evitar ciclo de referencia
         self.capabilities: List[AgentCapability] = []
-        self.message_queue: asyncio.Queue[AgentMessage] = asyncio.Queue()
-        self.event_bus_listener_task: Optional[asyncio.Task] = None
-        self.resource_ownership: Set[str] = set() # IDs de recursos que este agente posee
+        self.message_queue = asyncio.Queue()
+        self.stop_event = asyncio.Event()
+        self.task: Optional[asyncio.Task] = None
+        self.last_heartbeat = datetime.now()
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.logger = logging.getLogger(f"{self.namespace}.{self.name}")
+        self.logger.info(f"Agent {self.namespace}.{self.name} (ID: {self.id}) initialized.")
 
+    @abstractmethod
     async def initialize(self) -> bool:
-        self.status = AgentStatus.ACTIVE
-        logger.info(f"Agent {self.namespace}.{self.name} ({self.id}) initialized and set to ACTIVE.")
-        self.event_bus_listener_task = asyncio.create_task(self._event_bus_listener())
-        return True
+        """
+        Inicializa el agente, configura sus capacidades y carga estados.
+        Debe ser implementado por subclases.
+        """
+        pass
 
-    async def _event_bus_listener(self):
+    async def start(self):
+        """Inicia el bucle de procesamiento del agente."""
+        if self.status not in [AgentStatus.ACTIVE, AgentStatus.BUSY]:
+            await self.framework.registry.register_agent(self)
+            self.status = AgentStatus.ACTIVE
+            self.task = asyncio.create_task(self._run())
+            self.logger.info(f"Agent {self.name} started.")
+        else:
+            self.logger.warning(f"Agent {self.name} is already running or busy.")
+
+    async def stop(self):
+        """Detiene el bucle de procesamiento del agente."""
+        if self.status != AgentStatus.TERMINATED:
+            self.stop_event.set()
+            await self.framework.registry.unregister_agent(self.id)
+            self.status = AgentStatus.TERMINATED
+            if self.task:
+                self.task.cancel()
+                try:
+                    await self.task
+                except asyncio.CancelledError:
+                    self.logger.info(f"Agent {self.name} task cancelled.")
+                except Exception as e:
+                    self.logger.error(f"Error stopping agent {self.name} task: {e}")
+            self.logger.info(f"Agent {self.name} stopped.")
+
+    async def _run(self):
+        """Bucle principal de procesamiento de mensajes del agente."""
+        self.logger.info(f"Agent {self.name} message processing loop started.")
         try:
-            while True:
-                message = await self.message_queue.get()
-                self.last_active_at = datetime.now()
-                await self.handle_message(message)
-                self.message_queue.task_done()
+            while not self.stop_event.is_set():
+                self.last_heartbeat = datetime.now()
+                self.framework.registry.update_agent_status(self.id, AgentStatus.ACTIVE) # Keep status updated
+                try:
+                    # Espera mensajes o el evento de parada con un timeout
+                    message = await asyncio.wait_for(self.message_queue.get(), timeout=1.0)
+                    await self.process_message(message)
+                except asyncio.TimeoutError:
+                    # No hay mensajes, solo actualiza el estado o realiza tareas en segundo plano
+                    # self.logger.debug(f"Agent {self.name} is idle.")
+                    pass
+                except Exception as e:
+                    self.logger.error(f"Error in agent {self.name} _run loop: {e}", exc_info=True)
+                    self.status = AgentStatus.ERROR
+                await asyncio.sleep(0.1) # Pequeña pausa para no monopolizar el CPU
         except asyncio.CancelledError:
-            logger.info(f"Agent {self.name} message listener cancelled.")
+            self.logger.info(f"Agent {self.name} processing loop cancelled.")
         except Exception as e:
-            logger.error(f"Error in agent {self.name} message listener: {e}")
+            self.logger.critical(f"Agent {self.name} critical error in _run: {e}", exc_info=True)
             self.status = AgentStatus.ERROR
+        finally:
+            self.logger.info(f"Agent {self.name} processing loop terminated.")
+            self.status = AgentStatus.TERMINATED # Asegurar estado final
 
-    async def send_message(self, receiver_id: str, action: str, payload: Dict[str, Any], message_type: MessageType = MessageType.COMMAND, correlation_id: Optional[str] = None) -> str:
+    async def process_message(self, message: AgentMessage):
+        """Procesa un mensaje entrante."""
+        self.logger.info(f"Agent {self.name} received message type: {message.message_type.value} from {message.sender_id}")
+        self.status = AgentStatus.BUSY
+        try:
+            # Lógica para manejar diferentes tipos de mensajes
+            if message.message_type == MessageType.COMMAND or message.message_type == MessageType.REQUEST:
+                # Disparar la acción correspondiente a la capacidad
+                action = message.payload.get("action")
+                params = message.payload.get("params", {})
+                
+                response_payload = {"status": "failed", "error": "Action not found or not handled."}
+                
+                # Buscar y ejecutar la capacidad
+                found_capability = False
+                for capability in self.capabilities:
+                    if capability.name == action or capability.namespace == action:
+                        self.logger.info(f"Executing capability '{capability.name}' for agent {self.name}.")
+                        response_payload = await capability.handler(params)
+                        found_capability = True
+                        break
+                
+                if not found_capability:
+                    self.logger.warning(f"Agent {self.name} received unknown action: {action}")
+                    response_payload = {"status": "error", "message": f"Unknown action: {action}"}
+
+                # Si es una REQUEST, enviar una RESPONSE
+                if message.message_type == MessageType.REQUEST:
+                    response_message = AgentMessage(
+                        sender_id=self.id,
+                        receiver_id=message.sender_id,
+                        message_type=MessageType.RESPONSE,
+                        payload=response_payload,
+                        correlation_id=message.id # Correlacionar con el mensaje original
+                    )
+                    await self.framework.message_bus.send_message(response_message)
+                    self.logger.info(f"Sent response to {message.sender_id} for request {message.id}")
+
+            elif message.message_type == MessageType.EVENT:
+                # Los agentes pueden reaccionar a eventos globales o específicos
+                await self.handle_event(message.payload)
+
+            elif message.message_type == MessageType.RESPONSE:
+                # Manejar respuestas a requests que este agente envió previamente
+                await self.handle_response(message.payload, message.correlation_id)
+            
+            elif message.message_type == MessageType.HEARTBEAT:
+                self.logger.debug(f"Received heartbeat from {message.sender_id}")
+                # No se necesita una acción compleja, el loop ya actualiza last_heartbeat.
+                pass
+            
+            elif message.message_type == MessageType.ERROR:
+                self.logger.error(f"Received error message from {message.sender_id}: {message.payload.get('error')}")
+
+        except Exception as e:
+            self.logger.error(f"Error processing message for agent {self.name}: {e}", exc_info=True)
+            # Podría enviar un mensaje de error al remitente si es una solicitud
+            if message.message_type == MessageType.REQUEST:
+                error_response = AgentMessage(
+                    sender_id=self.id,
+                    receiver_id=message.sender_id,
+                    message_type=MessageType.ERROR,
+                    payload={"error": str(e), "original_message": message.payload},
+                    correlation_id=message.id
+                )
+                await self.framework.message_bus.send_message(error_response)
+        finally:
+            self.status = AgentStatus.ACTIVE
+
+    async def send_message(self, receiver_id: str, action: str, params: Dict[str, Any], message_type: MessageType = MessageType.REQUEST) -> str:
+        """
+        Envía un mensaje a otro agente a través del MessageBus.
+        Retorna el ID del mensaje enviado.
+        """
         message = AgentMessage(
             sender_id=self.id,
             receiver_id=receiver_id,
             message_type=message_type,
-            action=action,
-            payload=payload,
-            correlation_id=correlation_id
+            payload={"action": action, "params": params}
         )
         await self.framework.message_bus.send_message(message)
-        logger.debug(f"Agent {self.name} sent message {message.id} to {receiver_id} with action {action}.")
+        self.logger.info(f"Agent {self.name} sent {message_type.value} '{action}' to {receiver_id} (Msg ID: {message.id}).")
         return message.id
 
-    async def receive_message(self, message: AgentMessage):
-        await self.message_queue.put(message)
-        logger.debug(f"Agent {self.name} received message {message.id} from {message.sender_id}.")
+    async def create_agent(self, namespace: str, name: str, agent_class: Type['BaseAgent'], initial_params: Optional[Dict[str, Any]] = None) -> Optional['BaseAgent']:
+        """
+        Solicita al framework la creación de un nuevo agente.
+        Esto debería ser manejado por un agente de orquestación o el propio framework.
+        """
+        self.logger.info(f"Agent {self.name} requesting creation of new agent: {namespace}.{name}")
+        # En una arquitectura real, esto sería un mensaje al Framework o a un AgentFactory
+        # para que el Framework gestione la creación y el ciclo de vida.
+        # Por ahora, lo implementamos directamente aquí para simplificar la demo.
+        try:
+            new_agent = await self.framework.agent_factory.create_agent_instance(namespace, name, agent_class, self.framework, initial_params)
+            if new_agent:
+                self.logger.info(f"Agent {self.name} successfully created new agent: {new_agent.name} (ID: {new_agent.id})")
+                return new_agent
+        except Exception as e:
+            self.logger.error(f"Agent {self.name} failed to create new agent {namespace}.{name}: {e}")
+        return None
 
-    @abstractmethod
-    async def handle_message(self, message: AgentMessage):
+    async def publish_event(self, event_type: str, data: Dict[str, Any]):
+        """Publica un evento para que otros agentes puedan reaccianar."""
+        event_message = AgentMessage(
+            sender_id=self.id,
+            message_type=MessageType.EVENT,
+            receiver_id="all", # O un topic específico si implementamos topics
+            payload={"event_type": event_type, "data": data}
+        )
+        await self.framework.message_bus.send_message(event_message)
+        self.logger.info(f"Agent {self.name} published event: {event_type}")
+
+    async def handle_event(self, event_payload: Dict[str, Any]):
+        """Método para que los agentes manejen eventos entrantes. Puede ser sobreescrito."""
+        event_type = event_payload.get("event_type")
+        self.logger.info(f"Agent {self.name} handling event: {event_type}")
+        # Implementar lógica de manejo de eventos aquí
         pass
 
-    async def execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        capability = next((cap for cap in self.capabilities if cap.name == action or cap.namespace == action), None)
-        if capability:
-            # Aquí se integraría la seguridad: verificar permisos antes de ejecutar
-            # if not self.framework.security_manager.check_permissions(self.id, capability.permissions_required):
-            #     raise Exception("Permission denied")
-            try:
-                self.status = AgentStatus.BUSY
-                result = await capability.handler(params)
-                self.status = AgentStatus.ACTIVE
-                logger.info(f"Agent {self.name} executed action {action}.")
-                return result
-            except Exception as e:
-                logger.error(f"Error executing action {action} for agent {self.name}: {e}\n{traceback.format_exc()}")
-                self.status = AgentStatus.ERROR
-                return {"error": str(e)}
-        else:
-            logger.warning(f"Agent {self.name} received request for unknown action: {action}")
-            return {"error": f"Unknown action: {action}"}
-            
-    async def create_agent(self, namespace: str, name: str, agent_class: Type['BaseAgent'], initial_params: Optional[Dict[str, Any]] = None) -> Optional['BaseAgent']:
-        """ Permite a un agente crear y registrar un nuevo agente. """
-        new_agent = await self.framework.agent_factory.create_agent(namespace, name, agent_class, initial_params)
-        if new_agent:
-            logger.info(f"Agent {self.name} created new agent: {new_agent.namespace}.{new_agent.name} ({new_agent.id})")
-        return new_agent
+    async def handle_response(self, response_payload: Dict[str, Any], correlation_id: Optional[str]):
+        """Método para que los agentes manejen respuestas a sus requests. Puede ser sobreescrito."""
+        self.logger.info(f"Agent {self.name} handling response for correlation ID: {correlation_id}")
+        # Implementar lógica de manejo de respuestas aquí, e.g., usando un diccionario de callbacks
+        pass
 
-    async def shutdown(self):
-        self.status = AgentStatus.TERMINATED
-        if self.event_bus_listener_task:
-            self.event_bus_listener_task.cancel()
-            try:
-                await self.event_bus_listener_task
-            except asyncio.CancelledError:
-                pass
-        logger.info(f"Agent {self.namespace}.{self.name} ({self.id}) shut down.")
+    def __str__(self):
+        return f"{self.namespace}.{self.name} (ID: {self.id[:8]}...)"
+
+
+# ================================\
+# FRAMEWORK CORE COMPONENTS (placeholder for now)
+# These will be extracted to their own files in subsequent steps
+# ================================\
 
 class MessageBus:
-    def __init__(self, registry: 'AgentRegistry'):
-        self.registry = registry
-        self.message_log: List[AgentMessage] = [] # Para auditoría y persistencia
-        self.message_handlers: Dict[str, Callable] = {} # receiver_id -> handler_func
+    """
+    Sistema de comunicación central para que los agentes intercambien mensajes.
+    (Placeholder - se extraerá a core/message_bus.py)
+    """
+    def __init__(self, framework: 'AgentFramework'):
+        self.framework = weakref.proxy(framework)
+        self.message_queue: asyncio.Queue[AgentMessage] = asyncio.Queue()
+        self.logger = logging.getLogger("MessageBus")
+        self._listener_task: Optional[asyncio.Task] = None
+        self._stop_event = asyncio.Event()
+        self.logger.info("MessageBus initialized.")
 
-    async def send_message(self, message: AgentMessage):
-        self.message_log.append(message)
-        receiver = self.registry.get_agent(message.receiver_id)
-        if receiver:
-            await receiver.receive_message(message)
-            message.status = "delivered"
-            logger.debug(f"Message {message.id} delivered to {receiver.name}.")
-        else:
-            message.status = "failed"
-            logger.warning(f"Message {message.id} failed: Receiver {message.receiver_id} not found.")
+    async def start(self):
+        """Inicia el bus de mensajes."""
+        if not self._listener_task:
+            self._stop_event.clear()
+            self._listener_task = asyncio.create_task(self._listen_for_messages())
+            self.logger.info("MessageBus started listening for messages.")
 
-    def register_handler(self, agent_id: str, handler: Callable):
-        self.message_handlers[agent_id] = handler
+    async def stop(self):
+        """Detiene el bus de mensajes."""
+        if self._listener_task:
+            self._stop_event.set()
+            self._listener_task.cancel()
+            try:
+                await self._listener_task
+            except asyncio.CancelledError:
+                self.logger.info("MessageBus listener task cancelled.")
+            self._listener_task = None
+            self.logger.info("MessageBus stopped.")
 
-    def unregister_handler(self, agent_id: str):
-        self.message_handlers.pop(agent_id, None)
-
-    def get_message_history(self, agent_id: Optional[str] = None, limit: int = 100) -> List[AgentMessage]:
-        if agent_id:
-            return [msg for msg in self.message_log if msg.sender_id == agent_id or msg.receiver_id == agent_id][-limit:]
-        return self.message_log[-limit:]
-
-class AgentRegistry:
-    def __init__(self):
-        self._agents: Dict[str, BaseAgent] = {} # id -> agent_instance
-        self._namespaces: Dict[str, List[str]] = {} # namespace -> [id1, id2, ...]
-        logger.info("AgentRegistry initialized.")
-
-    def register_agent(self, agent: BaseAgent):
-        if agent.id in self._agents:
-            logger.warning(f"Agent with ID {agent.id} already registered. Updating.")
-        self._agents[agent.id] = agent
-        if agent.namespace not in self._namespaces:
-            self._namespaces[agent.namespace] = []
-        if agent.id not in self._namespaces[agent.namespace]:
-            self._namespaces[agent.namespace].append(agent.id)
-        logger.info(f"Agent {agent.namespace}.{agent.name} ({agent.id}) registered.")
-
-    def unregister_agent(self, agent_id: str):
-        agent = self._agents.pop(agent_id, None)
-        if agent:
-            if agent.namespace in self._namespaces:
-                self._namespaces[agent.namespace].remove(agent.id)
-                if not self._namespaces[agent.namespace]:
-                    del self._namespaces[agent.namespace]
-            logger.info(f"Agent {agent.name} ({agent_id}) unregistered.")
+    async def send_message(self, message: AgentMessage) -> bool:
+        """Envía un mensaje a la cola global."""
+        try:
+            await self.message_queue.put(message)
+            self.logger.debug(f"Message {message.id} from {message.sender_id} to {message.receiver_id} queued.")
             return True
-        logger.warning(f"Attempted to unregister non-existent agent with ID: {agent_id}.")
-        return False
+        except Exception as e:
+            self.logger.error(f"Failed to queue message {message.id}: {e}")
+            return False
 
-    def get_agent(self, agent_id: str) -> Optional[BaseAgent]:
-        return self._agents.get(agent_id)
+    async def _listen_for_messages(self):
+        """Bucle para procesar mensajes de la cola y enrutarlos a los agentes."""
+        self.logger.info("MessageBus listener loop started.")
+        while not self._stop_event.is_set():
+            try:
+                message = await asyncio.wait_for(self.message_queue.get(), timeout=1.0)
+                if message.receiver_id == "all":
+                    # Enviar a todos los agentes activos (broadcast)
+                    for agent in self.framework.registry.list_all_agents():
+                        # Evitar que el remitente reciba su propio broadcast si no es necesario
+                        if agent.id != message.sender_id:
+                            await agent.message_queue.put(message)
+                else:
+                    receiver_agent = self.framework.registry.get_agent(message.receiver_id)
+                    if receiver_agent:
+                        await receiver_agent.message_queue.put(message)
+                        self.logger.debug(f"Message {message.id} routed to {receiver_agent.name}.")
+                    else:
+                        self.logger.warning(f"Receiver agent {message.receiver_id} not found for message {message.id}.")
+                        # Opcional: enviar mensaje de error de vuelta al remitente
+            except asyncio.TimeoutError:
+                pass # No hay mensajes, seguir esperando
+            except Exception as e:
+                self.logger.error(f"Error processing message in MessageBus: {e}", exc_info=True)
+            finally:
+                self.message_queue.task_done() # Indicar que la tarea de la cola ha sido procesada
+            await asyncio.sleep(0.05) # Pequeña pausa para no monopolizar el CPU
+        self.logger.info("MessageBus listener loop stopped.")
 
-    def get_agents_by_namespace(self, namespace: str) -> List[BaseAgent]:
-        agent_ids = self._namespaces.get(namespace, [])
-        return [self._agents[aid] for aid in agent_ids if aid in self._agents]
-
-    def list_all_agents(self) -> List[BaseAgent]:
-        return list(self._agents.values())
-        
-    def get_agent_status(self, agent_id: str) -> Optional[AgentStatus]:
-        agent = self.get_agent(agent_id)
-        return agent.status if agent else None
 
 class ResourceManager:
-    def __init__(self, registry: AgentRegistry):
-        self.registry = registry
-        self._resources: Dict[str, AgentResource] = {} # id -> resource_instance
-        self._resource_by_namespace: Dict[str, List[str]] = {} # namespace -> [id1, id2, ...]
-        logger.info("ResourceManager initialized.")
+    """
+    Gestiona los recursos compartidos entre agentes.
+    (Placeholder - se extraerá a core/resource_manager.py)
+    """
+    def __init__(self):
+        self.resources: Dict[str, AgentResource] = {}
+        self.logger = logging.getLogger("ResourceManager")
+        self.logger.info("ResourceManager initialized.")
 
     async def create_resource(self, resource: AgentResource) -> bool:
-        if resource.id in self._resources:
-            logger.warning(f"Resource with ID {resource.id} already exists. Use update_resource.")
+        """Crea un nuevo recurso."""
+        if resource.id in self.resources:
+            self.logger.warning(f"Resource with ID {resource.id} already exists. Use update_resource.")
             return False
-        self._resources[resource.id] = resource
-        if resource.namespace not in self._resource_by_namespace:
-            self._resource_by_namespace[resource.namespace] = []
-        self._resource_by_namespace[resource.namespace].append(resource.id)
-        
-        if resource.owner_agent_id:
-            owner_agent = self.registry.get_agent(resource.owner_agent_id)
-            if owner_agent:
-                owner_agent.resource_ownership.add(resource.id)
-        
-        logger.info(f"Resource {resource.name} ({resource.id}) created under namespace {resource.namespace}.")
+        self.resources[resource.id] = resource
+        self.logger.info(f"Resource '{resource.name}' (ID: {resource.id}) created.")
         return True
 
     async def get_resource(self, resource_id: str) -> Optional[AgentResource]:
-        return self._resources.get(resource_id)
+        """Obtiene un recurso por su ID."""
+        return self.resources.get(resource_id)
 
-    async def update_resource(self, resource: AgentResource) -> bool:
-        if resource.id not in self._resources:
-            logger.warning(f"Resource with ID {resource.id} not found for update.")
-            return False
-        self._resources[resource.id] = resource
-        resource.updated_at = datetime.now()
-        logger.info(f"Resource {resource.name} ({resource.id}) updated.")
-        return True
+    async def update_resource(self, resource_id: str, new_data: Dict[str, Any]) -> bool:
+        """Actualiza los datos de un recurso existente."""
+        resource = self.resources.get(resource_id)
+        if resource:
+            # Asegurarse de que `data` sea un diccionario si se va a usar `update`
+            if isinstance(resource.data, dict) and isinstance(new_data, dict):
+                resource.data.update(new_data)
+            else:
+                resource.data = new_data # Reemplazar si no son diccionarios
+            resource.last_modified = datetime.now()
+            # Opcional: recalcular checksum si la data es grande y se desea verificar integridad
+            self.logger.info(f"Resource '{resource.name}' (ID: {resource_id}) updated.")
+            return True
+        self.logger.warning(f"Resource with ID {resource_id} not found for update.")
+        return False
 
     async def delete_resource(self, resource_id: str) -> bool:
-        resource = self._resources.pop(resource_id, None)
-        if resource:
-            if resource.namespace in self._resource_by_namespace:
-                self._resource_by_namespace[resource.namespace].remove(resource.id)
-                if not self._resource_by_namespace[resource.namespace]:
-                    del self._resource_by_namespace[resource.namespace]
-            
-            if resource.owner_agent_id:
-                owner_agent = self.registry.get_agent(resource.owner_agent_id)
-                if owner_agent and resource.id in owner_agent.resource_ownership:
-                    owner_agent.resource_ownership.remove(resource.id)
-
-            logger.info(f"Resource {resource.name} ({resource.id}) deleted.")
+        """Elimina un recurso por su ID."""
+        if resource_id in self.resources:
+            del self.resources[resource_id]
+            self.logger.info(f"Resource with ID {resource_id} deleted.")
             return True
-        logger.warning(f"Attempted to delete non-existent resource with ID: {resource_id}.")
+        self.logger.warning(f"Resource with ID {resource_id} not found for deletion.")
         return False
-        
-    def find_resources_by_owner(self, owner_agent_id: str) -> List[AgentResource]:
-        return [res for res in self._resources.values() if res.owner_agent_id == owner_agent_id]
 
     def find_resources_by_type(self, resource_type: ResourceType) -> List[AgentResource]:
-        return [res for res in self._resources.values() if res.type == resource_type]
+        """Encuentra recursos por tipo."""
+        return [r for r in self.resources.values() if r.type == resource_type]
+
+    def find_resources_by_owner(self, owner_agent_id: str) -> List[AgentResource]:
+        """Encuentra recursos por agente propietario."""
+        return [r for r in self.resources.values() if r.owner_agent_id == owner_agent_id]
 
     def list_all_resources(self) -> List[AgentResource]:
-        return list(self._resources.values())
+        """Lista todos los recursos gestionados."""
+        return list(self.resources.values())
+
 
 class AgentFactory:
+    """
+    Factoría para crear instancias de agentes.
+    (Placeholder - se extraerá a core/agent_factory.py)
+    """
     def __init__(self, framework: 'AgentFramework'):
-        self.framework = framework
-        self._agent_classes: Dict[str, Type[BaseAgent]] = {}
-        logger.info("AgentFactory initialized.")
+        self.framework = weakref.proxy(framework)
+        self.logger = logging.getLogger("AgentFactory")
+        self.logger.info("AgentFactory initialized.")
 
-    def register_agent_class(self, namespace: str, agent_class: Type[BaseAgent]):
-        self._agent_classes[namespace] = agent_class
-        logger.info(f"Agent class for namespace '{namespace}' registered.")
+    async def create_agent_instance(self, namespace: str, name: str, agent_class: Type[BaseAgent], framework: 'AgentFramework', initial_params: Optional[Dict[str, Any]] = None) -> Optional[BaseAgent]:
+        """Crea y registra una instancia de un agente."""
+        try:
+            agent = agent_class(name=name, framework=framework)
+            agent.namespace = namespace # Sobrescribir namespace si la clase lo define diferente
+            
+            # Si hay parámetros iniciales específicos, aplicarlos aquí antes de la inicialización
+            if initial_params:
+                for key, value in initial_params.items():
+                    if hasattr(agent, key):
+                        setattr(agent, key, value)
+                    else:
+                        self.logger.warning(f"Initial parameter '{key}' not found on agent {name}.")
 
-    async def create_agent(self, namespace: str, name: str, agent_class: Optional[Type[BaseAgent]] = None, initial_params: Optional[Dict[str, Any]] = None) -> Optional[BaseAgent]:
-        if agent_class is None:
-            agent_class = self._agent_classes.get(namespace)
-            if not agent_class:
-                logger.error(f"No agent class registered for namespace: {namespace}")
+            if await agent.initialize():
+                await agent.start() # Iniciar el agente después de la inicialización
+                self.logger.info(f"Successfully created and started agent: {namespace}.{name} (ID: {agent.id})")
+                return agent
+            else:
+                self.logger.error(f"Failed to initialize agent {namespace}.{name}")
                 return None
-        
-        agent = agent_class(name, self.framework)
-        await agent.initialize()
-        self.framework.registry.register_agent(agent)
-        logger.info(f"Agent {name} of type {namespace} created with ID {agent.id}.")
-        return agent
-        
-    async def create_agent_ecosystem(self, framework: 'AgentFramework') -> Dict[str, BaseAgent]:
-        """ Crea un conjunto de agentes predefinidos para una demostración o caso de uso. """
-        from specialized_agents import StrategistAgent, WorkflowDesignerAgent, CodeGeneratorAgent, TestGeneratorAgent, BuildAgent # Importación local para evitar circular
+        except Exception as e:
+            self.logger.error(f"Error creating agent {namespace}.{name}: {e}", exc_info=True)
+            return None
 
-        self.register_agent_class("agent.planning.strategist", StrategistAgent)
-        self.register_agent_class("agent.design.workflow", WorkflowDesignerAgent)
-        self.register_agent_class("agent.development.code_generator", CodeGeneratorAgent)
-        self.register_agent_class("agent.development.test_generator", TestGeneratorAgent)
-        self.register_agent_class("agent.devops.build", BuildAgent)
+    @classmethod
+    async def create_agent_ecosystem(cls, framework: 'AgentFramework') -> Dict[str, BaseAgent]:
+        """
+        Crea un ecosistema de agentes predefinidos para la demo.
+        Esto se moverá a un archivo de configuración o un módulo de orquestación.
+        """
+        logging.info("Creating agent ecosystem...")
+        agents: Dict[str, BaseAgent] = {}
 
-        agents = {}
-        agents['strategist'] = await self.create_agent("agent.planning.strategist", "MainStrategist")
-        agents['workflow_designer'] = await self.create_agent("agent.design.workflow", "SystemWorkflowDesigner")
-        agents['code_generator'] = await self.create_agent("agent.development.code_generator", "BackendCodeGenerator")
-        agents['test_generator'] = await self.create_agent("agent.development.test_generator", "UnitTestGenerator")
-        agents['builder'] = await self.create_agent("agent.devops.build", "CIBuilder")
-        
-        logger.info(f"Agent ecosystem created with {len(agents)} agents.")
-        return agents
+        # Importar dinámicamente o de forma explícita los agentes especializados
+        # Esto es un placeholder; en una refactorización real, los agentes se cargarían de config
+        try:
+            # Importaciones temporales para la demo, deberían ser gestionadas por un PluginManager o similar
+            from specialized_agents import StrategistAgent, WorkflowDesignerAgent, CodeGeneratorAgent, TestGeneratorAgent, BuildAgent # type: ignore
+        except ImportError:
+            logging.error("Could not import specialized agents. Please ensure 'specialized_agents.py' is available.")
+            return agents
+
+        factory = AgentFactory(framework) # Usar la instancia de factory
+
+        # Agentes de Planificación
+        strategist_agent = await factory.create_agent_instance(
+            "agent.planning.strategist", "strategist", StrategistAgent, framework
+        )
+        if strategist_agent:
+            agents['strategist'] = strategist_agent
+
+        workflow_designer_agent = await factory.create_agent_instance(
+            "agent.planning.workflow_designer", "workflow_designer", WorkflowDesignerAgent, framework
+        )
+        if workflow_designer_agent:
+            agents['workflow_designer'] = workflow_designer_agent
+
+        # Agentes de Desarrollo
+        code_generator_agent = await factory.create_agent_instance(
+            "agent.build.code.generator", "code_generator", CodeGeneratorAgent, framework
+        )
+        if code_generator_agent:
+            agents['code_generator'] = code_generator_agent
+            
+        build_agent_instance = await factory.create_agent_instance(
+            "agent.build.builder", "builder", BuildAgent, framework
+        )
+        if build_agent_instance:
+            agents['build_agent'] = build_agent_instance
+
+        # Agentes de Testing
+        test_generator_agent = await factory.create_agent_instance(
+            "agent.test.generator", "test_generator", TestGeneratorAgent, framework
+        )
+        if test_generator_agent:
+            agents['test_generator'] = test_generator_agent
+
+        # Asegurar que todos los agentes se iniciaron correctamente
+        for agent_name, agent_instance in agents.items():
+            if agent_instance and agent_instance.status != AgentStatus.ACTIVE:
+                logging.warning(f"Agent {agent_name} did not start correctly. Current status: {agent_instance.status.value}")
+            elif not agent_instance:
+                 logging.error(f"Agent {agent_name} could not be created.")
+
+        logging.info(f"Agent ecosystem created with {len(agents)} agents.")
+        return {k: v for k, v in agents.items() if v is not None} # Filter out None values
+
+
+# ================================\
+# MAIN FRAMEWORK CLASS
+# ================================\
 
 class AgentFramework:
-    def __init__(self, name: str = "DefaultFramework"):
-        self.name = name
-        self.registry: AgentRegistry = AgentRegistry()
-        self.message_bus: MessageBus = MessageBus(self.registry)
-        self.resource_manager: ResourceManager = ResourceManager(self.registry)
-        self.agent_factory: AgentFactory = AgentFactory(self)
-        self.is_running: bool = False
-        self.start_time: datetime = datetime.now()
-        logger.info(f"AgentFramework '{self.name}' initialized.")
+    """
+    Clase principal del Framework de Agentes Autónomos.
+    Orquesta los componentes del sistema y gestiona el ciclo de vida.
+    """
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.logger = logging.getLogger("AgentFramework")
+        self.config = config or {}
+
+        # Core Components
+        self.registry = AgentRegistry() # <--- INSTANCIA DE LA CLASE EXTRAÍDA
+        self.message_bus = MessageBus(self) # Pasa self para que pueda acceder al registry
+        self.resource_manager = ResourceManager()
+        self.agent_factory = AgentFactory(self) # Pasa self para que pueda usar registry y message_bus
+        self.is_running = False
+        self.health_check_task: Optional[asyncio.Task] = None
+        self.logger.info("AgentFramework initialized.")
 
     async def start(self):
+        """Inicia todos los componentes del framework."""
         if self.is_running:
-            logger.warning("Framework is already running.")
+            self.logger.warning("Framework is already running.")
             return
+
+        self.logger.info("Starting AgentFramework components...")
+        
+        # Iniciar MessageBus primero, ya que es fundamental para la comunicación
+        await self.message_bus.start()
+
+        # Iniciar tareas de monitoreo de salud (si aplica)
+        self.health_check_task = asyncio.create_task(self._run_health_checks())
 
         self.is_running = True
-        logger.info(f"AgentFramework '{self.name}' started.")
+        self.logger.info("AgentFramework started successfully.")
 
     async def stop(self):
+        """Detiene todos los componentes del framework y los agentes."""
         if not self.is_running:
-            logger.warning("Framework is not running.")
+            self.logger.warning("Framework is not running.")
             return
 
-        logger.info(f"Stopping AgentFramework '{self.name}'...")
+        self.logger.info("Stopping AgentFramework components...")
+
+        # Detener todos los agentes registrados
+        agents_to_stop = list(self.registry.list_all_agents()) # Obtener una copia para evitar cambios durante la iteración
+        for agent in agents_to_stop:
+            try:
+                await agent.stop()
+            except Exception as e:
+                self.logger.error(f"Error stopping agent {agent.name}: {e}")
+
+        # Cancelar tareas de salud
+        if self.health_check_task:
+            self.health_check_task.cancel()
+            try:
+                await self.health_check_task
+            except asyncio.CancelledError:
+                self.logger.info("Health check task cancelled.")
         
-        # Shut down all agents gracefully
-        agents_to_shutdown = list(self.registry.list_all_agents())
-        for agent in agents_to_shutdown:
-            await agent.shutdown()
-            self.registry.unregister_agent(agent.id) # Unregister after shutdown
+        # Detener MessageBus
+        await self.message_bus.stop()
 
         self.is_running = False
-        logger.info(f"AgentFramework '{self.name}' stopped.")
+        self.logger.info("AgentFramework stopped.")
 
-    @asynccontextmanager
-    async def run_until_complete(self):
-        await self.start()
+    async def _run_health_checks(self):
+        """Tarea periódica para verificar la salud de los agentes."""
         try:
-            yield
-        finally:
-            await self.stop()
+            while self.is_running:
+                # self.logger.debug("Running health checks...")
+                for agent in self.registry.list_all_agents():
+                    if (datetime.now() - agent.last_heartbeat).total_seconds() > 60: # Agentes sin heartbeat por 60s
+                        if agent.status != AgentStatus.ERROR and agent.status != AgentStatus.TERMINATED:
+                            self.logger.warning(f"Agent {agent.name} (ID: {agent.id}) is unresponsive. Setting status to ERROR.")
+                            self.registry.update_agent_status(agent.id, AgentStatus.ERROR)
+                            # Podríamos añadir lógica para intentar reiniciar el agente
+                await asyncio.sleep(30) # Ejecutar cada 30 segundos
+        except asyncio.CancelledError:
+            self.logger.info("Framework health check task cancelled.")
+        except Exception as e:
+            self.logger.error(f"Error in framework health check: {e}", exc_info=True)
 
-# ================================
-# DEMO / USAGE EXAMPLE
-# ================================
 
-# Definir un agente simple para la demostración
-class BuildAgent(BaseAgent):
-    def __init__(self, name: str, framework: AgentFramework):
-        super().__init__("agent.devops.build", name, framework)
-        self.capabilities = [
-            AgentCapability(
-                name="perform_build",
-                namespace="agent.devops.build.perform",
-                description="Performs a simulated software build.",
-                input_schema={"project_name": "string", "version": "string"},
-                output_schema={"status": "string", "build_log": "string"},
-                handler=self._perform_build
-            )
-        ]
-
-    async def handle_message(self, message: AgentMessage):
-        logger.info(f"BuildAgent {self.name} received message: {message.action} from {message.sender_id}")
-        if message.action == "action.perform.build":
-            result = await self.execute_action("perform_build", message.payload)
-            await self.send_message(
-                message.sender_id,
-                "response.perform.build",
-                result,
-                MessageType.RESPONSE,
-                correlation_id=message.id
-            )
-        else:
-            logger.warning(f"BuildAgent {self.name} received unhandled action: {message.action}")
-
-    async def _perform_build(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        project_name = params.get("project_name", "unknown")
-        version = params.get("version", "1.0.0")
-        logger.info(f"Simulating build for {project_name} version {version}...")
-        await asyncio.sleep(1) # Simulate work
-        build_log = f"Build of {project_name} v{version} completed successfully."
-        logger.info(build_log)
-        
-        # Crear un recurso de tipo BUILD (artefacto)
-        build_artifact = AgentResource(
-            name=f"{project_name}_build_{version}",
-            namespace=f"resource.build.{project_name}",
-            type=ResourceType.RELEASE,
-            data={"project": project_name, "version": version, "log": build_log, "status": "success"},
-            owner_agent_id=self.id,
-            tags={"version": version, "status": "success"}
-        )
-        await self.framework.resource_manager.create_resource(build_artifact)
-
-        return {"status": "success", "build_log": build_log}
-
+# ================================\
+# DEMO / EXAMPLE USAGE
+# ================================\
 
 async def example_usage():
-    framework = AgentFramework("DevOpsFramework")
+    """Ejemplo de uso del framework."""
+    framework = AgentFramework()
     try:
         await framework.start()
 
-        # Registrar el tipo de agente BuildAgent con el factory
-        framework.agent_factory.register_agent_class("agent.devops.build", BuildAgent)
-
         # Crear ecosistema de agentes
-        agents = await AgentFactory.create_agent_ecosystem(framework)
+        agents = await AgentFactory.create_agent_ecosystem(framework) # Se usa el factory del framework
         
         # Ejemplo de comunicación entre agentes
-        strategist = agents['strategist']
-        workflow_designer = agents['workflow_designer']
+        strategist = agents.get('strategist')
+        workflow_designer = agents.get('workflow_designer')
         
-        # El estratega solicita un workflow al diseñador
-        message_id = await strategist.send_message(
-            workflow_designer.id,
-            "action.create.workflow",
-            {
-                "tasks": ["analyze_requirements", "design_architecture", "implement_features"],
-                "priority": "high"
-            }
-        )
-        
-        logger.info(f"Message sent: {message_id}")
-        
-        # Esperar un poco para ver la comunicación
-        await asyncio.sleep(2)
-        
-        # El estratega puede crear un nuevo agente especializado
-        new_agent = await strategist.create_agent(
-            "agent.devops.build",
-            "unit_tester",
-            BuildAgent  # Usando BuildAgent como ejemplo
-        )
-        
-        if new_agent:
-            logger.info(f"New agent created: {new_agent.id}")
+        if strategist and workflow_designer:
+            # El estratega solicita un workflow al diseñador
+            message_id = await strategist.send_message(
+                workflow_designer.id,
+                "action.create.workflow",
+                {
+                    "tasks": ["analyze_requirements", "design_architecture", "implement_features"],
+                    "priority": "high"
+                }
+            )
             
-        # Listar todos los agentes
-        all_agents = framework.registry.list_all_agents()
-        logger.info(f"Total agents: {len(all_agents)}")
-        for agent in all_agents:
-            logger.info(f"  - {agent.namespace}.{agent.name} ({agent.id}) - {agent.status.value}")
+            print(f"Message sent: {message_id}")
+            
+            # Esperar un poco para ver la comunicación
+            await asyncio.sleep(2)
+            
+            # El estratega puede crear un nuevo agente especializado
+            # Necesitamos importar BuildAgent si la vamos a usar aquí directamente
+            from specialized_agents import BuildAgent # type: ignore
+            new_agent = await strategist.create_agent(
+                "agent.test",
+                "unit_tester",
+                BuildAgent  # Usando BuildAgent como ejemplo
+            )
+            
+            if new_agent:
+                print(f"New agent created: {new_agent.id}")
+                
+            # Listar todos los agentes
+            all_agents = framework.registry.list_all_agents()
+            print(f"Total agents: {len(all_agents)}")
+            for agent in all_agents:
+                print(f"  - {agent.namespace}.{agent.name} ({agent.id}) - {agent.status.value}")
+        else:
+            print("Could not retrieve strategist or workflow_designer agent. Check agent creation.")
             
     finally:
         await framework.stop()

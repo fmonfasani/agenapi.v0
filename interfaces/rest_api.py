@@ -20,7 +20,7 @@ from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStat
 from core.specialized_agents import ExtendedAgentFactory
 from core.security_system import SecurityManager, Permission, SecurityLevel, AuthenticationMethod
 from core.persistence_system import PersistenceManager, PersistenceFactory, PersistenceBackend
-from systems.framework_config_utils import MetricsCollector # Assuming this exists or is a placeholder for system metrics
+from framework_config_utils import MetricsCollector # Assuming this exists or is a placeholder for system metrics
 
 
 # Configure logging

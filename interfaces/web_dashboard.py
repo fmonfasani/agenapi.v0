@@ -12,7 +12,7 @@ from aiohttp import web, WSMsgType
 import aiohttp_cors
 
 from core.autonomous_agent_framework import AgentFramework, AgentStatus
-from systems.framework_config_utils import MetricsCollector
+from framework_config_utils import MetricsCollector
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

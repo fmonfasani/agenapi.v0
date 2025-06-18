@@ -16,30 +16,15 @@ from core.autonomous_agent_framework import AgentFramework
 from core.security_system import SecurityManager
 from core.persistence_system import PersistenceManager, PersistenceBackend
 from interfaces.rest_api import FrameworkAPIServer
-
-# Configure logging for the entire module
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# ================================
-# DEPLOYMENT MODELS
-# ================================
+from core.models import ResourceType # Importar de core.models
 
 class DeploymentEnvironment(Enum):
-    """Deployment environments."""
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
     TESTING = "testing"
 
 class DeploymentStrategy(Enum):
-    """Deployment strategies."""
     STANDALONE = "standalone"
     DOCKER = "docker"
     KUBERNETES = "kubernetes"
@@ -47,7 +32,6 @@ class DeploymentStrategy(Enum):
 
 @dataclass
 class DeploymentConfig:
-    """Deployment configuration."""
     environment: DeploymentEnvironment
     strategy: DeploymentStrategy
     framework_config: Dict[str, Any]
@@ -60,875 +44,74 @@ class DeploymentConfig:
     
 @dataclass
 class DeploymentStatus:
-    """Deployment status."""
-    environment: str
-    strategy: str
-    status: str  # deploying, running, stopped, failed
-    started_at: Optional[datetime]
-    last_health_check: Optional[datetime]
-    agents_count: int
-    error_message: Optional[str] = None
-
-# ================================
-# DOCKER DEPLOYMENT
-# ================================
-
-class DockerDeployment:
-    """Manages Docker deployments."""
-    
-    def __init__(self, config: DeploymentConfig):
-        self.config = config
-        self.container_name = f"agent-framework-{config.environment.value}"
-        
-    def generate_dockerfile(self) -> str:
-        """Generates the Dockerfile content."""
-        dockerfile = """
-FROM python:3.11-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \\
-    curl \\
-    git \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Create working directory
-WORKDIR /app
-
-# Copy requirements
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Create necessary directories
-RUN mkdir -p /app/logs /app/data /app/plugins
-
-# Configure environment variables
-ENV PYTHONPATH=/app
-ENV FRAMEWORK_ENV={environment}
-ENV LOG_LEVEL=INFO
-
-# Expose ports
-EXPOSE 8000 8080
-
-# Default command
-CMD ["python", "main.py"]
-        """.format(environment=self.config.environment.value)
-        
-        return dockerfile.strip()
-        
-    def generate_requirements_txt(self) -> str:
-        """Generates the requirements.txt file content."""
-        requirements = """
-aiohttp==3.9.1
-aiohttp-cors==0.7.0
-aiohttp-swagger==1.0.16
-aiosqlite==0.19.0
-pydantic==2.5.0
-pyjwt==2.8.0
-pyyaml==6.0.1
-asyncio-mqtt==0.16.1
-redis==5.0.1
-psycopg2-binary==2.9.9
-cryptography==41.0.8
-prometheus-client==0.19.0
-        """
-        return requirements.strip()
-        
-    def generate_docker_compose(self) -> str:
-        """Generates the docker-compose.yml content."""
-        compose = {
-            "version": "3.8",
-            "services": {
-                "agent-framework": {
-                    "build": ".",
-                    "container_name": self.container_name,
-                    "ports": [
-                        "8000:8000",  # API
-                        "8080:8080"   # Dashboard
-                    ],
-                    "environment": {
-                        "FRAMEWORK_ENV": self.config.environment.value,
-                        "DATABASE_URL": "sqlite:///data/framework.db",
-                        "JWT_SECRET": "${JWT_SECRET:-default_secret}",
-                        "LOG_LEVEL": "INFO"
-                    },
-                    "volumes": [
-                        "./data:/app/data",
-                        "./logs:/app/logs",
-                        "./plugins:/app/plugins"
-                    ],
-                    "restart": "unless-stopped",
-                    "healthcheck": {
-                        "test": ["CMD", "curl", "-f", "http://localhost:8000/api/health"],
-                        "interval": "30s",
-                        "timeout": "10s",
-                        "retries": 3,
-                        "start_period": "60s"
-                    }
-                },
-                "redis": {
-                    "image": "redis:7-alpine",
-                    "container_name": f"{self.container_name}-redis",
-                    "ports": ["6379:6379"],
-                    "volumes": ["redis_data:/data"],
-                    "restart": "unless-stopped"
-                } if self.config.persistence_config.get("backend") == "redis" else None,
-                "postgres": {
-                    "image": "postgres:15-alpine",
-                    "container_name": f"{self.container_name}-postgres",
-                    "environment": {
-                        "POSTGRES_DB": "agent_framework",
-                        "POSTGRES_USER": "framework_user",
-                        "POSTGRES_PASSWORD": "${POSTGRES_PASSWORD:-framework_pass}"
-                    },
-                    "ports": ["5432:5432"],
-                    "volumes": ["postgres_data:/var/lib/postgresql/data"],
-                    "restart": "unless-stopped"
-                } if self.config.persistence_config.get("backend") == "postgresql" else None,
-                "prometheus": {
-                    "image": "prom/prometheus:latest",
-                    "container_name": f"{self.container_name}-prometheus",
-                    "ports": ["9090:9090"],
-                    "volumes": [
-                        "./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml"
-                    ],
-                    "restart": "unless-stopped"
-                } if self.config.monitoring_config.get("prometheus") else None,
-                "grafana": {
-                    "image": "grafana/grafana:latest",
-                    "container_name": f"{self.container_name}-grafana",
-                    "ports": ["3000:3000"],
-                    "environment": {
-                        "GF_SECURITY_ADMIN_PASSWORD": "${GRAFANA_PASSWORD:-admin}"
-                    },
-                    "volumes": [
-                        "grafana_data:/var/lib/grafana",
-                        "./monitoring/grafana:/etc/grafana/provisioning"
-                    ],
-                    "restart": "unless-stopped"
-                } if self.config.monitoring_config.get("grafana") else None
-            },
-            "volumes": {
-                "redis_data": None,
-                "postgres_data": None,
-                "grafana_data": None
-            },
-            "networks": {
-                "agent-network": {
-                    "driver": "bridge"
-                }
-            }
-        }
-        
-        # Clean up None services
-        compose["services"] = {k: v for k, v in compose["services"].items() if v is not None}
-        
-        return yaml.dump(compose, default_flow_style=False)
-        
-    async def deploy(self, output_dir: str = "./deployment") -> bool:
-        """Deploys the application using Docker."""
-        try:
-            deploy_path = Path(output_dir)
-            deploy_path.mkdir(exist_ok=True)
-            
-            # Generate files
-            with open(deploy_path / "Dockerfile", "w") as f:
-                f.write(self.generate_dockerfile())
-                
-            with open(deploy_path / "requirements.txt", "w") as f:
-                f.write(self.generate_requirements_txt())
-                
-            with open(deploy_path / "docker-compose.yml", "w") as f:
-                f.write(self.generate_docker_compose())
-                
-            # Generate configuration file
-            config_data = {
-                "framework": self.config.framework_config,
-                "security": self.config.security_config,
-                "persistence": self.config.persistence_config,
-                "api": self.config.api_config,
-                "agents": self.config.agents_config
-            }
-            
-            with open(deploy_path / "config.yaml", "w") as f:
-                yaml.dump(config_data, f)
-                
-            # Generate deployment script
-            deploy_script = self._generate_deploy_script()
-            with open(deploy_path / "deploy.sh", "w") as f:
-                f.write(deploy_script)
-            os.chmod(deploy_path / "deploy.sh", 0o755)
-            
-            # Generate main.py
-            main_py = self._generate_main_py()
-            with open(deploy_path / "main.py", "w") as f:
-                f.write(main_py)
-                
-            logger.info(f"Docker deployment files generated in {deploy_path}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Docker deployment failed: {e}")
-            return False
-            
-    def _generate_deploy_script(self) -> str:
-        """Generates the Docker deployment script."""
-        script = f"""#!/bin/bash
-
-# Deployment script for Agent Framework
-# Environment: {self.config.environment.value}
-
-set -e
-
-echo "🚀 Deploying Agent Framework ({self.config.environment.value})"
-
-# Verify Docker
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is required but not installed"
-    exit 1
-fi
-
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is required but not installed"
-    exit 1
-fi
-
-# Create necessary directories
-mkdir -p data logs plugins monitoring/grafana monitoring/prometheus
-
-# Generate Prometheus configuration if it doesn't exist
-if [ ! -f "monitoring/prometheus.yml" ]; then
-    cat > monitoring/prometheus.yml << EOF
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: 'agent-framework'
-    static_configs:
-      - targets: ['agent-framework:8000']
-    metrics_path: '/metrics'
-EOF
-fi
-
-# Environment variables
-export JWT_SECRET=${{JWT_SECRET:-$(openssl rand -hex 32)}}
-export POSTGRES_PASSWORD=${{POSTGRES_PASSWORD:-framework_pass_$(openssl rand -hex 8)}}
-export GRAFANA_PASSWORD=${{GRAFANA_PASSWORD:-admin}}
-
-echo "🔧 Building and starting containers..."
-
-# Build and start
-docker-compose down --remove-orphans
-docker-compose build
-docker-compose up -d
-
-echo "⏳ Waiting for services to be ready..."
-sleep 30
-
-# Health check
-echo "🏥 Checking health..."
-for i in {{1..10}}; do
-    if curl -f http://localhost:8000/api/health > /dev/null 2>&1; then
-        echo "✅ Framework is healthy"
-        break
-    fi
-    echo "⏳ Waiting for framework to start (attempt $i/10)..."
-    sleep 10
-done
-
-echo "📊 Service URLs:"
-echo "   API: http://localhost:8000"
-echo "   Dashboard: http://localhost:8080"
-if docker-compose ps | grep prometheus > /dev/null; then
-    echo "   Prometheus: http://localhost:9090"
-fi
-if docker-compose ps | grep grafana > /dev/null; then
-    echo "   Grafana: http://localhost:3000 (admin:$GRAFANA_PASSWORD)"
-fi
-
-echo "🎉 Deployment completed!"
-        """
-        return script
-        
-    def _generate_main_py(self) -> str:
-        """Generates the main.py file content for the container."""
-        main_py = """
-import asyncio
-import logging
-import os
-import yaml
-from pathlib import Path
-
-# Import framework components
-from autonomous_agent_framework import AgentFramework
-from specialized_agents import ExtendedAgentFactory
-from security_system import SecurityManager
-from persistence_system import PersistenceFactory, PersistenceBackend
-from rest_api import FrameworkAPIServer
-from web_dashboard import DashboardServer
-
-async def main():
-    # Configure logging
-    log_level = os.getenv("LOG_LEVEL", "INFO")
-    logging.basicConfig(
-        level=getattr(logging, log_level),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('/app/logs/framework.log'),
-            logging.StreamHandler()
-        ]
-    )
-    
-    logger = logging.getLogger(__name__)
-    logger.info("Starting Agent Framework...")
-    
-    # Load configuration
-    config_path = Path("/app/config.yaml")
-    if config_path.exists():
-        with open(config_path) as f:
-            config = yaml.safe_load(f)
-    else:
-        config = {
-            "framework": {},
-            "security": {"jwt_secret": os.getenv("JWT_SECRET", "default_secret")},
-            "persistence": {"backend": "sqlite", "connection_string": "/app/data/framework.db"},
-            "api": {"host": "0.0.0.0", "port": 8000},
-            "agents": []
-        }
-    
-    try:
-        # Initialize framework
-        framework = AgentFramework()
-        await framework.start()
-        logger.info("Framework started")
-        
-        # Configure security
-        security_manager = SecurityManager(config.get("security", {}))
-        logger.info("Security manager initialized")
-        
-        # Configure persistence
-        persistence_config = config.get("persistence", {})
-        if persistence_config.get("backend") == "sqlite":
-            persistence_manager = PersistenceFactory.create_persistence_manager(
-                backend=PersistenceBackend.SQLITE,
-                connection_string=persistence_config.get("connection_string", "/app/data/framework.db")
-            )
-            await persistence_manager.initialize()
-            logger.info("Persistence initialized")
-        
-        # Create configured agents
-        agents_config = config.get("agents", [])
-        for agent_config in agents_config:
-            try:
-                agent = ExtendedAgentFactory.create_agent(
-                    agent_config["namespace"],
-                    agent_config["name"],
-                    framework
-                )
-                if agent_config.get("auto_start", True):
-                    await agent.start()
-                logger.info(f"Created agent: {agent_config['name']}")
-            except Exception as e:
-                logger.error(f"Failed to create agent {agent_config.get('name')}: {e}")
-        
-        # Start API server
-        api_config = config.get("api", {})
-        api_server = FrameworkAPIServer(
-            framework,
-            host=api_config.get("host", "0.0.0.0"),
-            port=api_config.get("port", 8000)
-        )
-        api_runner = await api_server.start()
-        logger.info(f"API server started on {api_config.get('host', '0.0.0.0')}:{api_config.get('port', 8000)}")
-        
-        # Start dashboard
-        dashboard_server = DashboardServer(
-            framework,
-            host="0.0.0.0",
-            port=8080
-        )
-        dashboard_runner = await dashboard_server.start()
-        logger.info("Dashboard started on 0.0.0.0:8080")
-        
-        # Keep running
-        logger.info("All services started successfully")
-        while True:
-            await asyncio.sleep(60)
-            # Internal health check
-            agents = framework.registry.list_all_agents()
-            logger.debug(f"Health check: {len(agents)} agents active")
-            
-    except KeyboardInterrupt:
-        logger.info("Shutdown signal received")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        raise
-    finally:
-        logger.info("Shutting down...")
-        await framework.stop()
-        if 'api_runner' in locals():
-            await api_runner.cleanup()
-        if 'dashboard_runner' in locals():
-            await dashboard_runner.cleanup()
-        logger.info("Shutdown complete")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-        """
-        return main_py.strip()
-
-# ================================
-# KUBERNETES DEPLOYMENT
-# ================================
-
-class KubernetesDeployment:
-    """Manages Kubernetes deployments."""
-    
-    def __init__(self, config: DeploymentConfig):
-        self.config = config
-        self.namespace = f"agent-framework-{config.environment.value}"
-        
-    def generate_namespace(self) -> Dict[str, Any]:
-        """Generates the Kubernetes namespace manifest."""
-        return {
-            "apiVersion": "v1",
-            "kind": "Namespace",
-            "metadata": {
-                "name": self.namespace,
-                "labels": {
-                    "app": "agent-framework",
-                    "environment": self.config.environment.value
-                }
-            }
-        }
-        
-    def generate_configmap(self) -> Dict[str, Any]:
-        """Generates the ConfigMap manifest."""
-        config_data = {
-            "framework": self.config.framework_config,
-            "security": self.config.security_config,
-            "persistence": self.config.persistence_config,
-            "api": self.config.api_config,
-            "agents": self.config.agents_config
-        }
-        
-        return {
-            "apiVersion": "v1",
-            "kind": "ConfigMap",
-            "metadata": {
-                "name": "agent-framework-config",
-                "namespace": self.namespace
-            },
-            "data": {
-                "config.yaml": yaml.dump(config_data)
-            }
-        }
-        
-    def generate_secret(self) -> Dict[str, Any]:
-        """Generates the Secret manifest."""
-        import base64
-        
-        # In production, these values should be configured externally
-        jwt_secret = self.config.security_config.get("jwt_secret", "change_in_production")
-        db_password = "framework_db_password"
-        
-        return {
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {
-                "name": "agent-framework-secrets",
-                "namespace": self.namespace
-            },
-            "type": "Opaque",
-            "data": {
-                "jwt-secret": base64.b64encode(jwt_secret.encode()).decode(),
-                "db-password": base64.b64encode(db_password.encode()).decode()
-            }
-        }
-        
-    def generate_deployment(self) -> Dict[str, Any]:
-        """Generates the Deployment manifest."""
-        replicas = self.config.scaling_config.get("replicas", 1)
-        
-        return {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "name": "agent-framework",
-                "namespace": self.namespace,
-                "labels": {
-                    "app": "agent-framework",
-                    "environment": self.config.environment.value
-                }
-            },
-            "spec": {
-                "replicas": replicas,
-                "selector": {
-                    "matchLabels": {
-                        "app": "agent-framework"
-                    }
-                },
-                "template": {
-                    "metadata": {
-                        "labels": {
-                            "app": "agent-framework"
-                        }
-                    },
-                    "spec": {
-                        "containers": [
-                            {
-                                "name": "agent-framework",
-                                "image": f"agent-framework:{self.config.environment.value}",
-                                "ports": [
-                                    {"containerPort": 8000, "name": "api"},
-                                    {"containerPort": 8080, "name": "dashboard"}
-                                ],
-                                "env": [
-                                    {
-                                        "name": "FRAMEWORK_ENV",
-                                        "value": self.config.environment.value
-                                    },
-                                    {
-                                        "name": "JWT_SECRET",
-                                        "valueFrom": {
-                                            "secretKeyRef": {
-                                                "name": "agent-framework-secrets",
-                                                "key": "jwt-secret"
-                                            }
-                                        }
-                                    }
-                                ],
-                                "volumeMounts": [
-                                    {
-                                        "name": "config",
-                                        "mountPath": "/app/config.yaml",
-                                        "subPath": "config.yaml"
-                                    },
-                                    {
-                                        "name": "data",
-                                        "mountPath": "/app/data"
-                                    }
-                                ],
-                                "livenessProbe": {
-                                    "httpGet": {
-                                        "path": "/api/health",
-                                        "port": 8000
-                                    },
-                                    "initialDelaySeconds": 60,
-                                    "periodSeconds": 30
-                                },
-                                "readinessProbe": {
-                                    "httpGet": {
-                                        "path": "/api/health",
-                                        "port": 8000
-                                    },
-                                    "initialDelaySeconds": 30,
-                                    "periodSeconds": 10
-                                },
-                                "resources": {
-                                    "requests": {
-                                        "memory": "512Mi",
-                                        "cpu": "250m"
-                                    },
-                                    "limits": {
-                                        "memory": "1Gi",
-                                        "cpu": "500m"
-                                    }
-                                }
-                            }
-                        ],
-                        "volumes": [
-                            {
-                                "name": "config",
-                                "configMap": {
-                                    "name": "agent-framework-config"
-                                }
-                            },
-                            {
-                                "name": "data",
-                                "persistentVolumeClaim": {
-                                    "claimName": "agent-framework-data"
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
-        }
-        
-    def generate_service(self) -> Dict[str, Any]:
-        """Generates the Service manifest."""
-        return {
-            "apiVersion": "v1",
-            "kind": "Service",
-            "metadata": {
-                "name": "agent-framework-service",
-                "namespace": self.namespace
-            },
-            "spec": {
-                "selector": {
-                    "app": "agent-framework"
-                },
-                "ports": [
-                    {
-                        "name": "api",
-                        "port": 8000,
-                        "targetPort": 8000
-                    },
-                    {
-                        "name": "dashboard",
-                        "port": 8080,
-                        "targetPort": 8080
-                    }
-                ],
-                "type": "ClusterIP"
-            }
-        }
-        
-    def generate_ingress(self) -> Dict[str, Any]:
-        """Generates the Ingress manifest."""
-        domain = self.config.framework_config.get("domain", "agent-framework.local")
-        
-        return {
-            "apiVersion": "networking.k8s.io/v1",
-            "kind": "Ingress",
-            "metadata": {
-                "name": "agent-framework-ingress",
-                "namespace": self.namespace,
-                "annotations": {
-                    "nginx.ingress.kubernetes.io/rewrite-target": "/",
-                    "cert-manager.io/cluster-issuer": "letsencrypt-prod"
-                }
-            },
-            "spec": {
-                "tls": [
-                    {
-                        "hosts": [domain],
-                        "secretName": "agent-framework-tls"
-                    }
-                ],
-                "rules": [
-                    {
-                        "host": domain,
-                        "http": {
-                            "paths": [
-                                {
-                                    "path": "/api",
-                                    "pathType": "Prefix",
-                                    "backend": {
-                                        "service": {
-                                            "name": "agent-framework-service",
-                                            "port": {"number": 8000}
-                                        }
-                                    }
-                                },
-                                {
-                                    "path": "/",
-                                    "pathType": "Prefix",
-                                    "backend": {
-                                        "service": {
-                                            "name": "agent-framework-service",
-                                            "port": {"number": 8080}
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        }
-        
-    def generate_pvc(self) -> Dict[str, Any]:
-        """Generates the PersistentVolumeClaim manifest."""
-        return {
-            "apiVersion": "v1",
-            "kind": "PersistentVolumeClaim",
-            "metadata": {
-                "name": "agent-framework-data",
-                "namespace": self.namespace
-            },
-            "spec": {
-                "accessModes": ["ReadWriteOnce"],
-                "resources": {
-                    "requests": {
-                        "storage": "10Gi"
-                    }
-                }
-            }
-        }
-        
-    async def deploy(self, output_dir: str = "./k8s-deployment") -> bool:
-        """Deploys the application using Kubernetes."""
-        try:
-            deploy_path = Path(output_dir)
-            deploy_path.mkdir(exist_ok=True)
-            
-            # Generate manifests
-            manifests = [
-                ("namespace.yaml", self.generate_namespace()),
-                ("configmap.yaml", self.generate_configmap()),
-                ("secret.yaml", self.generate_secret()),
-                ("pvc.yaml", self.generate_pvc()),
-                ("deployment.yaml", self.generate_deployment()),
-                ("service.yaml", self.generate_service()),
-                ("ingress.yaml", self.generate_ingress())
-            ]
-            
-            for filename, manifest in manifests:
-                with open(deploy_path / filename, "w") as f:
-                    yaml.dump(manifest, f, default_flow_style=False)
-                    
-            # Generate deployment script
-            deploy_script = self._generate_k8s_deploy_script()
-            with open(deploy_path / "deploy.sh", "w") as f:
-                f.write(deploy_script)
-            os.chmod(deploy_path / "deploy.sh", 0o755)
-            
-            logger.info(f"Kubernetes manifests generated in {deploy_path}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Kubernetes deployment failed: {e}")
-            return False
-            
-    def _generate_k8s_deploy_script(self) -> str:
-        """Generates the Kubernetes deployment script."""
-        script = f"""#!/bin/bash
-
-# Kubernetes deployment script for Agent Framework
-# Environment: {self.config.environment.value}
-
-set -e
-
-echo "🚀 Deploying Agent Framework to Kubernetes ({self.config.environment.value})"
-
-# Verify kubectl
-if ! command -v kubectl &> /dev/null; then
-    echo "❌ kubectl is required but not installed"
-    exit 1
-fi
-
-# Verify cluster connection
-if ! kubectl cluster-info > /dev/null 2>&1; then
-    echo "❌ Not connected to a Kubernetes cluster"
-    exit 1
-fi
-
-echo "🔧 Applying Kubernetes manifests..."
-
-# Apply manifests in order
-kubectl apply -f namespace.yaml
-kubectl apply -f configmap.yaml
-kubectl apply -f secret.yaml
-kubectl apply -f pvc.yaml
-kubectl apply -f deployment.yaml
-kubectl apply -f service.yaml
-kubectl apply -f ingress.yaml
-
-echo "⏳ Waiting for deployment to be ready..."
-kubectl wait --for=condition=available --timeout=300s deployment/agent-framework -n {self.namespace}
-
-echo "✅ Deployment completed!"
-
-# Show information
-echo "📊 Service information:"
-kubectl get pods,svc,ingress -n {self.namespace}
-
-echo "🔍 To check logs:"
-echo "kubectl logs -f deployment/agent-framework -n {self.namespace}"
-
-echo "🌐 To access the service:"
-echo "kubectl port-forward service/agent-framework-service 8000:8000 -n {self.namespace}"
-        """
-        return script
-
-# ================================
-# DEPLOYMENT ORCHESTRATOR
-# ================================
+    deployment_id: str
+    config: DeploymentConfig
+    status: str
+    deployed_at: datetime
+    output_dir: Path
+    logs: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
 
 class DeploymentOrchestrator:
-    """Main deployment orchestrator."""
-    
-    def __init__(self):
-        self.deployments: Dict[str, Any] = {}
-        
-    def create_deployment_config(
-        self,
-        environment: DeploymentEnvironment,
-        strategy: DeploymentStrategy,
-        **kwargs
-    ) -> DeploymentConfig:
-        """Creates a deployment configuration."""
-        
-        # Default configuration based on environment
-        if environment == DeploymentEnvironment.DEVELOPMENT:
-            framework_config = {
-                "log_level": "DEBUG",
-                "auto_save_interval": 30
-            }
-            security_config = {
-                "jwt_secret": "dev_secret",
-                "session_max_hours": 8
-            }
-            persistence_config = {
-                "backend": "json",
-                "connection_string": "./data"
-            }
-            scaling_config = {
-                "replicas": 1,
-                "auto_scaling": False
-            }
-        elif environment == DeploymentEnvironment.STAGING:
-            framework_config = {
-                "log_level": "INFO",
-                "auto_save_interval": 60
-            }
-            security_config = {
-                "jwt_secret": kwargs.get("jwt_secret", "staging_secret"),
-                "session_max_hours": 12
-            }
-            persistence_config = {
-                "backend": "sqlite",
-                "connection_string": "./data/framework.db"
-            }
-            scaling_config = {
-                "replicas": 2,
-                "auto_scaling": False
-            }
-        else:  # PRODUCTION
-            framework_config = {
-                "log_level": "WARNING",
-                "auto_save_interval": 300,
-                "domain": kwargs.get("domain", "agent-framework.com")
-            }
-            security_config = {
-                "jwt_secret": kwargs.get("jwt_secret", "CHANGE_IN_PRODUCTION"),
-                "session_max_hours": 24,
-                "enable_agent_authentication": True
-            }
-            persistence_config = {
-                "backend": "postgresql",
-                "connection_string": kwargs.get("db_url", "postgresql://user:pass@localhost/framework")
-            }
-            scaling_config = {
-                "replicas": 3,"auto_scaling": True,
-                "min_replicas": 3,
-                "max_replicas": 10
-            }
+    def __init__(self, framework: AgentFramework):
+        self.framework = framework
+        self.logger = logging.getLogger("DeploymentOrchestrator")
+        self.deployments: Dict[str, DeploymentStatus] = {}
 
-        # Override with any provided kwargs
-        framework_config.update(kwargs.get("framework_config", {}))
-        security_config.update(kwargs.get("security_config", {}))
-        persistence_config.update(kwargs.get("persistence_config", {}))
-        api_config = kwargs.get("api_config", {"host": "0.0.0.0", "port": 8000})
-        agents_config = kwargs.get("agents_config", [])
-        monitoring_config = kwargs.get("monitoring_config", {"prometheus": True, "grafana": True})
-        scaling_config.update(kwargs.get("scaling_config", {}))
+    def create_deployment_config(self, 
+                                 environment: DeploymentEnvironment, 
+                                 strategy: DeploymentStrategy, 
+                                 **kwargs) -> DeploymentConfig:
+        
+        framework_defaults = {
+            "name": f"Framework-{environment.value}",
+            "log_level": "INFO" if environment == DeploymentEnvironment.PRODUCTION else "DEBUG",
+            "message_queue_size": 10000,
+        }
+        security_defaults = {
+            "jwt_secret": "super_secret_key" if environment != DeploymentEnvironment.PRODUCTION else kwargs.get("jwt_secret", "CHANGE_THIS_IN_PROD"),
+            "enable_authentication": True,
+            "enable_authorization": True,
+        }
+        persistence_defaults = {
+            "backend": PersistenceBackend.SQLITE.value,
+            "connection_string": f"{environment.value}.db",
+            "auto_save_interval": 300,
+        }
+        api_defaults = {
+            "host": "0.0.0.0",
+            "port": 8000 if environment != DeploymentEnvironment.PRODUCTION else 443,
+            "enable_https": True if environment == DeploymentEnvironment.PRODUCTION else False,
+            "swagger_path": "/docs",
+        }
+        agents_defaults = [
+            {"namespace": "agent.planning.strategist", "name": "strategist", "auto_start": True},
+            {"namespace": "agent.build.code.generator", "name": "code_generator", "auto_start": True},
+        ]
+        monitoring_defaults = {
+            "enable_monitoring": True,
+            "health_check_interval": 60,
+            "metrics_collection": True,
+            "alerting": {
+                "enabled": True,
+                "email_alerts": False,
+                "webhook_alerts": [],
+            }
+        }
+        scaling_defaults = {
+            "min_agents": 1,
+            "max_agents": 5,
+            "cpu_threshold": 80,
+        }
+
+        # Override defaults with kwargs
+        framework_config = {**framework_defaults, **kwargs.get("framework_config", {})}
+        security_config = {**security_defaults, **kwargs.get("security_config", {})}
+        persistence_config = {**persistence_defaults, **kwargs.get("persistence_config", {})}
+        api_config = {**api_defaults, **kwargs.get("api_config", {})}
+        agents_config = kwargs.get("agents_config", agents_defaults)
+        monitoring_config = {**monitoring_defaults, **kwargs.get("monitoring_config", {})}
+        scaling_config = {**scaling_defaults, **kwargs.get("scaling_config", {})}
 
         return DeploymentConfig(
             environment=environment,
@@ -942,167 +125,449 @@ class DeploymentOrchestrator:
             scaling_config=scaling_config
         )
 
-    async def deploy(self, config: DeploymentConfig, output_dir: str = "./deployments") -> DeploymentStatus:
-        """Initiates a deployment based on the provided configuration."""
-        deployment_key = f"{config.environment.value}-{config.strategy.value}"
-        logger.info(f"Initiating deployment for {deployment_key}...")
-
+    async def deploy(self, config: DeploymentConfig, output_dir: Union[str, Path]) -> bool:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        deployment_id = f"deploy-{config.environment.value}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
         status = DeploymentStatus(
-            environment=config.environment.value,
-            strategy=config.strategy.value,
-            status="deploying",
-            started_at=datetime.now(),
-            last_health_check=None,
-            agents_count=len(config.agents_config)
+            deployment_id=deployment_id,
+            config=config,
+            status="PENDING",
+            deployed_at=datetime.now(),
+            output_dir=output_dir,
         )
+        self.deployments[deployment_id] = status
+        self.logger.info(f"Initiating deployment '{deployment_id}' for {config.environment.value} environment with {config.strategy.value} strategy.")
 
         try:
-            if config.strategy == DeploymentStrategy.DOCKER_COMPOSE:
-                docker_deployer = DockerDeployment(config)
-                success = await docker_deployer.deploy(output_dir=os.path.join(output_dir, deployment_key))
+            if config.strategy == DeploymentStrategy.STANDALONE:
+                await self._deploy_standalone(config, output_dir, status)
+            elif config.strategy == DeploymentStrategy.DOCKER:
+                await self._deploy_docker(config, output_dir, status)
             elif config.strategy == DeploymentStrategy.KUBERNETES:
-                k8s_deployer = KubernetesDeployment(config)
-                success = await k8s_deployer.deploy(output_dir=os.path.join(output_dir, deployment_key))
+                await self._deploy_kubernetes(config, output_dir, status)
+            elif config.strategy == DeploymentStrategy.DOCKER_COMPOSE:
+                await self._deploy_docker_compose(config, output_dir, status)
             else:
-                logger.error(f"Unsupported deployment strategy: {config.strategy.value}")
-                status.status = "failed"
-                status.error_message = f"Unsupported strategy: {config.strategy.value}"
-                self.deployments[deployment_key] = status
-                return status
+                raise ValueError(f"Unsupported deployment strategy: {config.strategy.value}")
 
-            if success:
-                status.status = "running"
-                logger.info(f"Deployment {deployment_key} completed successfully.")
-            else:
-                status.status = "failed"
-                status.error_message = "Deployment script generation or execution failed."
-                logger.error(f"Deployment {deployment_key} failed.")
-
+            status.status = "COMPLETED"
+            self.logger.info(f"Deployment '{deployment_id}' completed successfully.")
+            return True
         except Exception as e:
-            logger.error(f"An unexpected error occurred during deployment {deployment_key}: {e}", exc_info=True)
-            status.status = "failed"
-            status.error_message = str(e)
-
-        self.deployments[deployment_key] = status
-        return status
-
-    async def get_deployment_status(self, environment: DeploymentEnvironment, strategy: DeploymentStrategy) -> Optional[DeploymentStatus]:
-        """Retrieves the status of a specific deployment."""
-        deployment_key = f"{environment.value}-{strategy.value}"
-        status = self.deployments.get(deployment_key)
-        if status:
-            logger.info(f"Retrieving status for {deployment_key}: {status.status}")
-        else:
-            logger.warning(f"No deployment found for {deployment_key}")
-        return status
-
-    async def undeploy(self, environment: DeploymentEnvironment, strategy: DeploymentStrategy, deployment_dir: str = "./deployments") -> bool:
-        """Undeploys a specific deployment."""
-        deployment_key = f"{environment.value}-{strategy.value}"
-        logger.info(f"Initiating undeployment for {deployment_key}...")
-
-        deploy_path = Path(deployment_dir) / deployment_key
-        if not deploy_path.exists():
-            logger.warning(f"Deployment directory not found for {deployment_key}. Nothing to undeploy.")
+            status.status = "FAILED"
+            status.errors.append(str(e))
+            self.logger.error(f"Deployment '{deployment_id}' failed: {e}", exc_info=True)
             return False
 
-        try:
-            if strategy == DeploymentStrategy.DOCKER_COMPOSE:
-                command = ["docker-compose", "down", "--remove-orphans"]
-                cwd = deploy_path
-                log_message = "Docker Compose services stopped."
-            elif strategy == DeploymentStrategy.KUBERNETES:
-                command = ["kubectl", "delete", "-f", ".", "-n", f"agent-framework-{environment.value}"]
-                cwd = deploy_path
-                log_message = "Kubernetes resources deleted."
-            else:
-                logger.error(f"Undeployment not supported for strategy: {strategy.value}")
-                return False
+    async def _deploy_standalone(self, config: DeploymentConfig, output_dir: Path, status: DeploymentStatus):
+        self.logger.info(f"Generating standalone deployment files in {output_dir}")
+        
+        main_script_content = self._generate_main_script(config)
+        with open(output_dir / "run_framework.py", "w") as f:
+            f.write(main_script_content)
+        status.logs.append(f"Generated {output_dir / 'run_framework.py'}")
 
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
+        requirements_content = self._generate_requirements(config)
+        with open(output_dir / "requirements.txt", "w") as f:
+            f.write(requirements_content)
+        status.logs.append(f"Generated {output_dir / 'requirements.txt'}")
 
-            if process.returncode == 0:
-                logger.info(f"{log_message} for {deployment_key}")
-                shutil.rmtree(deploy_path)
-                logger.info(f"Cleaned up deployment directory: {deploy_path}")
-                if deployment_key in self.deployments:
-                    self.deployments[deployment_key].status = "stopped"
-                    self.deployments[deployment_key].error_message = None
-                return True
-            else:
-                error_output = stderr.decode().strip()
-                logger.error(f"Undeployment of {deployment_key} failed: {error_output}")
-                if deployment_key in self.deployments:
-                    self.deployments[deployment_key].status = "failed"
-                    self.deployments[deployment_key].error_message = f"Undeployment command failed: {error_output}"
-                return False
+        run_script_content = f"""#!/bin/bash
+echo "Installing dependencies..."
+pip install -r requirements.txt
+echo "Starting framework..."
+python run_framework.py
+"""
+        with open(output_dir / "run.sh", "w") as f:
+            f.write(run_script_content)
+        os.chmod(output_dir / "run.sh", 0o755)
+        status.logs.append(f"Generated {output_dir / 'run.sh'}")
+        self.logger.info("Standalone deployment files generated.")
 
-        except FileNotFoundError:
-            logger.error(f"Deployment tool not found for {strategy.value}. Make sure it's installed and in your PATH.")
-            return False
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during undeployment {deployment_key}: {e}", exc_info=True)
-            if deployment_key in self.deployments:
-                self.deployments[deployment_key].status = "failed"
-                self.deployments[deployment_key].error_message = str(e)
-            return False
+    async def _deploy_docker(self, config: DeploymentConfig, output_dir: Path, status: DeploymentStatus):
+        self.logger.info(f"Generating Docker deployment files in {output_dir}")
+        
+        main_script_content = self._generate_main_script(config)
+        with open(output_dir / "app.py", "w") as f:
+            f.write(main_script_content)
+        
+        requirements_content = self._generate_requirements(config)
+        with open(output_dir / "requirements.txt", "w") as f:
+            f.write(requirements_content)
 
-# Example usage (for demonstration purposes)
+        dockerfile_content = f"""
+FROM python:3.9-slim-buster
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["python", "app.py"]
+"""
+        with open(output_dir / "Dockerfile", "w") as f:
+            f.write(dockerfile_content)
+        status.logs.append(f"Generated {output_dir / 'Dockerfile'}")
+
+        build_script_content = f"""#!/bin/bash
+IMAGE_NAME="agent-framework-{config.environment.value}"
+TAG="latest"
+echo "Building Docker image $IMAGE_NAME:$TAG..."
+docker build -t $IMAGE_NAME:$TAG .
+echo "Docker image built. To run: docker run -p {config.api_config['port']}:{config.api_config['port']} $IMAGE_NAME:$TAG"
+"""
+        with open(output_dir / "build_and_run.sh", "w") as f:
+            f.write(build_script_content)
+        os.chmod(output_dir / "build_and_run.sh", 0o755)
+        status.logs.append(f"Generated {output_dir / 'build_and_run.sh'}")
+        self.logger.info("Docker deployment files generated.")
+
+    async def _deploy_kubernetes(self, config: DeploymentConfig, output_dir: Path, status: DeploymentStatus):
+        self.logger.info(f"Generating Kubernetes deployment files in {output_dir}")
+        
+        # Similar a Docker, primero generar la imagen, luego los manifiestos
+        await self._deploy_docker(config, output_dir, status) 
+
+        app_name = f"agent-framework-{config.environment.value}"
+
+        deployment_manifest = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": app_name},
+            "spec": {
+                "replicas": config.scaling_config.get("min_agents", 1),
+                "selector": {"matchLabels": {"app": app_name}},
+                "template": {
+                    "metadata": {"labels": {"app": app_name}},
+                    "spec": {
+                        "containers": [{
+                            "name": "framework",
+                            "image": f"{app_name}:latest", 
+                            "ports": [{"containerPort": config.api_config['port']}],
+                            "resources": {
+                                "requests": {"cpu": "100m", "memory": "256Mi"},
+                                "limits": {"cpu": "500m", "memory": "1Gi"}
+                            },
+                            "env": [
+                                {"name": "FRAMEWORK_CONFIG", "value": json.dumps(config.framework_config)},
+                                {"name": "SECURITY_CONFIG", "value": json.dumps(config.security_config)},
+                                {"name": "PERSISTENCE_CONFIG", "value": json.dumps(config.persistence_config)},
+                                {"name": "API_CONFIG", "value": json.dumps(config.api_config)},
+                                {"name": "AGENTS_CONFIG", "value": json.dumps(config.agents_config)},
+                                {"name": "MONITORING_CONFIG", "value": json.dumps(config.monitoring_config)},
+                            ]
+                        }]
+                    }
+                }
+            }
+        }
+        with open(output_dir / "deployment.yaml", "w") as f:
+            yaml.dump(deployment_manifest, f, indent=2)
+        status.logs.append(f"Generated {output_dir / 'deployment.yaml'}")
+
+        service_manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": app_name},
+            "spec": {
+                "selector": {"app": app_name},
+                "ports": [{"protocol": "TCP", "port": config.api_config['port'], "targetPort": config.api_config['port']}],
+                "type": "LoadBalancer" if config.environment == DeploymentEnvironment.PRODUCTION else "ClusterIP"
+            }
+        }
+        with open(output_dir / "service.yaml", "w") as f:
+            yaml.dump(service_manifest, f, indent=2)
+        status.logs.append(f"Generated {output_dir / 'service.yaml'}")
+
+        deploy_script_content = f"""#!/bin/bash
+echo "Applying Kubernetes manifests..."
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+echo "Kubernetes deployment initiated for {app_name}."
+echo "Monitor status with: kubectl get pods -l app={app_name}"
+echo "Access service: kubectl get service {app_name}"
+"""
+        with open(output_dir / "deploy.sh", "w") as f:
+            f.write(deploy_script_content)
+        os.chmod(output_dir / "deploy.sh", 0o755)
+        status.logs.append(f"Generated {output_dir / 'deploy.sh'}")
+        self.logger.info("Kubernetes deployment files generated.")
+
+    async def _deploy_docker_compose(self, config: DeploymentConfig, output_dir: Path, status: DeploymentStatus):
+        self.logger.info(f"Generating Docker Compose deployment files in {output_dir}")
+
+        main_script_content = self._generate_main_script(config)
+        with open(output_dir / "app.py", "w") as f:
+            f.write(main_script_content)
+        
+        requirements_content = self._generate_requirements(config)
+        with open(output_dir / "requirements.txt", "w") as f:
+            f.write(requirements_content)
+
+        dockerfile_content = f"""
+FROM python:3.9-slim-buster
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["python", "app.py"]
+"""
+        with open(output_dir / "Dockerfile", "w") as f:
+            f.write(dockerfile_content)
+        
+        service_name = f"framework-{config.environment.value}"
+        docker_compose_content = {
+            "version": "3.8",
+            "services": {
+                service_name: {
+                    "build": ".",
+                    "ports": [f"{config.api_config['port']}:{config.api_config['port']}"],
+                    "environment": {
+                        "FRAMEWORK_CONFIG": json.dumps(config.framework_config),
+                        "SECURITY_CONFIG": json.dumps(config.security_config),
+                        "PERSISTENCE_CONFIG": json.dumps(config.persistence_config),
+                        "API_CONFIG": json.dumps(config.api_config),
+                        "AGENTS_CONFIG": json.dumps(config.agents_config),
+                        "MONITORING_CONFIG": json.dumps(config.monitoring_config),
+                    },
+                    "volumes": [
+                        f"./data_{config.environment.value}:/app/data" # Persist data
+                    ]
+                }
+            }
+        }
+
+        with open(output_dir / "docker-compose.yaml", "w") as f:
+            yaml.dump(docker_compose_content, f, indent=2)
+        status.logs.append(f"Generated {output_dir / 'docker-compose.yaml'}")
+
+        run_script_content = f"""#!/bin/bash
+echo "Building and running Docker Compose services..."
+docker-compose up --build -d
+echo "Services started. Use 'docker-compose logs -f' to see logs."
+echo "To stop: docker-compose down"
+"""
+        with open(output_dir / "run_compose.sh", "w") as f:
+            f.write(run_script_content)
+        os.chmod(output_dir / "run_compose.sh", 0o755)
+        status.logs.append(f"Generated {output_dir / 'run_compose.sh'}")
+        self.logger.info("Docker Compose deployment files generated.")
+
+    def _generate_main_script(self, config: DeploymentConfig) -> str:
+        framework_config_str = json.dumps(config.framework_config)
+        security_config_str = json.dumps(config.security_config)
+        persistence_config_str = json.dumps(config.persistence_config)
+        api_config_str = json.dumps(config.api_config)
+        agents_config_str = json.dumps(config.agents_config)
+        monitoring_config_str = json.dumps(config.monitoring_config)
+
+        # Importaciones necesarias
+        imports = """
+import asyncio
+import os
+import json
+import logging
+from typing import Dict, Any, List
+from aiohttp import web
+
+from core.autonomous_agent_framework import AgentFramework, BaseAgent
+from core.specialized_agents import StrategistAgent, WorkflowDesignerAgent, CodeGeneratorAgent, TestGeneratorAgent, BuildAgent
+from core.security_system import SecurityManager
+from core.persistence_system import PersistenceManager, PersistenceFactory, PersistenceBackend
+from interfaces.rest_api import FrameworkAPIServer
+from core.monitoring_system import MonitoringOrchestrator
+"""
+
+        # Agentes disponibles para carga (a mapear en la factoría)
+        agent_class_map = {
+            "agent.planning.strategist": "StrategistAgent",
+            "agent.planning.workflow_designer": "WorkflowDesignerAgent",
+            "agent.build.code.generator": "CodeGeneratorAgent",
+            "agent.test.generator": "TestGeneratorAgent",
+            "agent.build.builder": "BuildAgent",
+        }
+        
+        agent_creation_lines = []
+        for agent_cfg in config.agents_config:
+            if agent_cfg.get("enabled", True):
+                namespace = agent_cfg["namespace"]
+                name = agent_cfg["name"]
+                agent_class = agent_class_map.get(namespace)
+                if agent_class:
+                    agent_creation_lines.append(
+                        f"    agent_instance = await framework.agent_factory.create_agent_instance(\n"
+                        f"        '{namespace}', '{name}', {agent_class}, framework\n"
+                        f"    )\n"
+                        f"    if agent_instance: deployed_agents[agent_instance.id] = agent_instance\n"
+                    )
+                else:
+                    self.logger.warning(f"Agent class for namespace '{namespace}' not found. Skipping.")
+
+
+        script_content = f"""{imports}
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("DeploymentMain")
+
 async def main():
-    orchestrator = DeploymentOrchestrator()
+    logger.info("Starting framework deployment...")
 
-    # Create a Docker Compose deployment configuration for development
-    dev_docker_config = orchestrator.create_deployment_config(
-        environment=DeploymentEnvironment.DEVELOPMENT,
-        strategy=DeploymentStrategy.DOCKER_COMPOSE,
-        api_config={"host": "0.0.0.0", "port": 8001}, # Custom API port for development
-        agents_config=[
-            {"namespace": "default", "name": "data_processor_dev", "auto_start": True},
-            {"namespace": "default", "name": "logger_agent_dev", "auto_start": False}
-        ]
-    )
-    logger.info(f"Generated Dev Docker Config: {asdict(dev_docker_config)}")
+    framework_config = json.loads(os.getenv('FRAMEWORK_CONFIG', '{framework_config_str}'))
+    security_config = json.loads(os.getenv('SECURITY_CONFIG', '{security_config_str}'))
+    persistence_config = json.loads(os.getenv('PERSISTENCE_CONFIG', '{persistence_config_str}'))
+    api_config = json.loads(os.getenv('API_CONFIG', '{api_config_str}'))
+    agents_config = json.loads(os.getenv('AGENTS_CONFIG', '{agents_config_str}'))
+    monitoring_config = json.loads(os.getenv('MONITORING_CONFIG', '{monitoring_config_str}'))
 
-    # Deploy the development environment with Docker Compose
-    dev_docker_status = await orchestrator.deploy(dev_docker_config)
-    logger.info(f"Dev Docker Deployment Status: {dev_docker_status.status}")
+    framework = AgentFramework(config=framework_config)
+    await framework.start()
 
-    # Create a Kubernetes deployment configuration for staging
-    staging_k8s_config = orchestrator.create_deployment_config(
-        environment=DeploymentEnvironment.STAGING,
-        strategy=DeploymentStrategy.KUBERNETES,
-        jwt_secret="super_secret_staging_key_123",
-        persistence_config={"backend": "postgresql", "connection_string": "postgresql://staging_user:staging_pass@db-staging/framework"},
-        scaling_config={"replicas": 3, "auto_scaling": True, "min_replicas": 2, "max_replicas": 5}
-    )
-    logger.info(f"Generated Staging K8s Config: {asdict(staging_k8s_config)}")
+    security_manager = SecurityManager(framework, security_config)
+    
+    persistence_manager = PersistenceManager(framework, persistence_config)
+    await persistence_manager.initialize()
 
-    # Deploy the staging environment to Kubernetes
-    staging_k8s_status = await orchestrator.deploy(staging_k8s_config)
-    logger.info(f"Staging K8s Deployment Status: {staging_k8s_status.status}")
+    api_server = FrameworkAPIServer(framework, security_manager, persistence_manager, host=api_config['host'], port=api_config['port'])
+    runner = await api_server.start()
 
-    # Get status of the development deployment
-    current_dev_status = await orchestrator.get_deployment_status(DeploymentEnvironment.DEVELOPMENT, DeploymentStrategy.DOCKER_COMPOSE)
-    if current_dev_status:
-        logger.info(f"Current Dev Docker Status: {current_dev_status.status}, Agents: {current_dev_status.agents_count}")
+    monitoring_orchestrator = MonitoringOrchestrator(framework, monitoring_config)
+    await monitoring_orchestrator.start_monitoring()
 
-    # Simulate waiting for a bit
-    await asyncio.sleep(5)
+    logger.info("Deploying agents as per configuration...")
+    deployed_agents: Dict[str, BaseAgent] = {{}}
+{chr(10).join(agent_creation_lines)}
+    logger.info(f"Deployed {{len(deployed_agents)}} agents.")
 
-    # Undeploy the development environment
-    undeploy_success = await orchestrator.undeploy(DeploymentEnvironment.DEVELOPMENT, DeploymentStrategy.DOCKER_COMPOSE)
-    logger.info(f"Dev Docker Undeployment Success: {undeploy_success}")
+    logger.info(f"Framework and services are running. Access API at http://{{api_config['host']}}:{{api_config['port']}}")
+    logger.info("Press Ctrl+C to stop...")
 
-    # Check status after undeployment
-    current_dev_status_after_undeploy = await orchestrator.get_deployment_status(DeploymentEnvironment.DEVELOPMENT, DeploymentStrategy.DOCKER_COMPOSE)
-    if current_dev_status_after_undeploy:
-        logger.info(f"Dev Docker Status After Undeploy: {current_dev_status_after_undeploy.status}")
+    try:
+        while True:
+            await asyncio.sleep(3600) # Keep running indefinitely
+    except asyncio.CancelledError:
+        logger.info("Application shutdown initiated.")
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received. Shutting down...")
+    finally:
+        logger.info("Stopping monitoring...")
+        await monitoring_orchestrator.stop_monitoring()
+        logger.info("Stopping API server...")
+        await api_server.stop()
+        logger.info("Stopping framework and agents...")
+        await framework.stop()
+        logger.info("Closing persistence...")
+        await persistence_manager.close()
+        logger.info("Application shut down cleanly.")
 
 if __name__ == "__main__":
     asyncio.run(main())
+"""
+        return script_content
+
+    def _generate_requirements(self, config: DeploymentConfig) -> str:
+        requirements = [
+            "aiohttp",
+            "aiohttp-cors",
+            "aiohttp-swagger",
+            "PyYAML",
+            "pyjwt",
+            "psutil",
+            "aiohttp",
+            "aiosqlite",
+            "python-dotenv",
+            "asyncio",
+            "logging",
+            "json",
+            "dataclasses",
+            "datetime",
+            "enum",
+            "abc",
+            "uuid",
+            "weakref",
+            "contextlib",
+            "traceback",
+            "statistics",
+            "smtplib",
+            "email",
+            "paramiko", # for SSH backend example (if used)
+            "boto3",    # for S3 backend example (if used)
+            "azure-storage-blob", # for Azure backend example (if used)
+        ]
+        
+        # Add specialized agent dependencies here if they are external packages
+        # Example: if you had an agent that uses 'tensorflow'
+        # if any(a.get("namespace").startswith("agent.ml") for a in config.agents_config):
+        #     requirements.append("tensorflow")
+            
+        # Add persistence backend specific requirements
+        if config.persistence_config["backend"] == PersistenceBackend.POSTGRESQL.value:
+            requirements.append("asyncpg")
+        elif config.persistence_config["backend"] == PersistenceBackend.REDIS.value:
+            requirements.append("aioredis")
+
+        return "\n".join(sorted(list(set(requirements))))
+
+    def list_deployments(self) -> List[DeploymentStatus]:
+        return list(self.deployments.values())
+
+    async def get_deployment_status(self, deployment_id: str) -> Optional[DeploymentStatus]:
+        return self.deployments.get(deployment_id)
+
+async def deployment_example():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.getLogger("DeploymentOrchestrator").setLevel(logging.DEBUG)
+
+    print("🚀 Starting Deployment System Demo")
+    print("="*50)
+
+    framework_instance = AgentFramework() # Placeholder framework instance
+    orchestrator = DeploymentOrchestrator(framework_instance)
+
+    print("\n1. Creating Development Deployment (Standalone)...")
+    dev_config = orchestrator.create_deployment_config(
+        DeploymentEnvironment.DEVELOPMENT,
+        DeploymentStrategy.STANDALONE,
+        api_config={"port": 8001, "host": "127.0.0.1"},
+        agents_config=[
+            {"namespace": "agent.planning.strategist", "name": "dev_strategist", "auto_start": True}
+        ]
+    )
+    success = await orchestrator.deploy(dev_config, "./deployment_dev")
+    if success:
+        print("✅ Development deployment files created")
+        print("   Location: ./deployment_dev")
+        print("   To run: cd deployment_dev && ./run.sh")
+
+    print("\n2. Creating Production Deployment (Kubernetes)...")
+    prod_config = orchestrator.create_deployment_config(
+        DeploymentEnvironment.PRODUCTION,
+        DeploymentStrategy.KUBERNETES,
+        domain="my-agent-framework.com",
+        jwt_secret="super_secure_production_secret",
+        db_url="postgresql://prod_user:prod_pass@postgres.cluster/framework"
+    )
+    
+    success = await orchestrator.deploy(prod_config, "./deployment_prod")
+    if success:
+        print("✅ Production deployment manifests created")
+        print("   Location: ./deployment_prod")
+        print("   Run: cd deployment_prod && ./deploy.sh")
+    
+    print("\n3. Deployment Status:")
+    deployments = orchestrator.list_deployments()
+    for i, deployment in enumerate(deployments, 1):
+        config = deployment.config
+        print(f"   {i}. {config.environment.value} ({config.strategy.value})")
+        print(f"      Status: {deployment.status}")
+        print(f"      Created: {deployment.deployed_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"      Output: {deployment.output_dir}")
+    
+    print("\n✅ Deployment demo completed")
+    print("\n📋 Next steps:")
+    print("   1. Review generated deployment files")
+    print("   2. Customize configuration as needed")
+    print("   3. Run deployment scripts")
+    print("   4. Monitor deployment status")
+
+if __name__ == "__main__":
+    asyncio.run(deployment_example())
