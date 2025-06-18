@@ -20,9 +20,9 @@ from core.backup_recovery_system import DisasterRecoveryOrchestrator
 from systems.deployment_system import DeploymentOrchestrator, DeploymentEnvironment, DeploymentStrategy
 from systems.plugin_system import PluginManager, ExternalAPIPlugin
 
-# ================================
+
 # COMPLETE E2E SCENARIO
-# ================================
+
 
 class E2EFrameworkDemo:
     """Demo completo end-to-end del framework"""
@@ -837,9 +837,9 @@ class E2EFrameworkDemo:
         except Exception as e:
             print(f"⚠️ Cleanup warning: {e}")
 
-# ================================
+
 # MAIN EXECUTION
-# ================================
+
 
 async def main():
     """Función principal del demo"""

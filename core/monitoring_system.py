@@ -20,9 +20,7 @@ import aiohttp
 
 from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus
 
-# ================================
-# MONITORING MODELS
-# ================================
+# CORE FRAMEWORK CLASSES
 
 class MetricType(Enum):
     """Tipos de métricas"""
@@ -63,1012 +61,659 @@ class Alert:
     rule_name: str
     severity: AlertSeverity
     status: AlertStatus
-    message: str
     triggered_at: datetime
+    last_updated_at: datetime
+    message: str
+    details: Dict[str, Any] = field(default_factory=dict)
     resolved_at: Optional[datetime] = None
-    acknowledged_at: Optional[datetime] = None
     acknowledged_by: Optional[str] = None
-    tags: Dict[str, str] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
-class AlertRule:
-    """Regla de alerta"""
-    name: str
-    metric_name: str
-    condition: str  # e.g., "> 0.8", "< 10", "== 0"
-    threshold: float
-    severity: AlertSeverity
-    duration: int = 60  # segundos antes de activar
-    description: str = ""
-    enabled: bool = True
-    cooldown: int = 300  # tiempo mínimo entre alertas (segundos)
+class HealthStatus:
+    """Estado de salud de un componente o del sistema"""
+    component: str
+    status: str
+    last_check: datetime
+    message: str
+    details: Dict[str, Any] = field(default_factory=dict)
 
-# ================================
-# METRICS COLLECTOR
-# ================================
-
-class AdvancedMetricsCollector:
-    """Recolector avanzado de métricas"""
-    
+class MetricsCollector:
+    """Colector de métricas del sistema y de agentes."""
     def __init__(self, framework: AgentFramework):
         self.framework = framework
-        self.metrics_history: List[Metric] = []
-        self.max_history_size = 10000
-        self.collection_interval = 30  # segundos
-        self.running = False
-        self.collection_task = None
-        
-    async def start_collection(self):
-        """Iniciar recolección automática de métricas"""
-        self.running = True
-        self.collection_task = asyncio.create_task(self._collection_loop())
-        logging.info("Metrics collection started")
-        
-    async def stop_collection(self):
-        """Detener recolección de métricas"""
-        self.running = False
-        if self.collection_task:
-            self.collection_task.cancel()
-        logging.info("Metrics collection stopped")
-        
-    async def _collection_loop(self):
-        """Loop principal de recolección"""
-        while self.running:
-            try:
-                await self._collect_all_metrics()
-                await asyncio.sleep(self.collection_interval)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Metrics collection error: {e}")
-                await asyncio.sleep(5)
-                
-    async def _collect_all_metrics(self):
-        """Recopilar todas las métricas"""
-        timestamp = datetime.now()
-        
-        # Métricas del framework
-        framework_metrics = await self._collect_framework_metrics(timestamp)
-        self._add_metrics(framework_metrics)
-        
-        # Métricas del sistema
-        system_metrics = await self._collect_system_metrics(timestamp)
-        self._add_metrics(system_metrics)
-        
-        # Métricas de agentes
-        agent_metrics = await self._collect_agent_metrics(timestamp)
-        self._add_metrics(agent_metrics)
-        
-        # Métricas de rendimiento
-        performance_metrics = await self._collect_performance_metrics(timestamp)
-        self._add_metrics(performance_metrics)
-        
-    async def _collect_framework_metrics(self, timestamp: datetime) -> List[Metric]:
-        """Recopilar métricas del framework"""
-        metrics = []
-        
-        agents = self.framework.registry.list_all_agents()
-        
-        # Total de agentes
-        metrics.append(Metric(
-            name="framework.agents.total",
-            type=MetricType.GAUGE,
-            value=len(agents),
-            timestamp=timestamp,
-            unit="count",
-            description="Total number of agents"
-        ))
-        
-        # Agentes por estado
-        status_counts = {}
-        for agent in agents:
-            status = agent.status.value
-            status_counts[status] = status_counts.get(status, 0) + 1
-            
-        for status, count in status_counts.items():
-            metrics.append(Metric(
-                name="framework.agents.by_status",
-                type=MetricType.GAUGE,
-                value=count,
-                timestamp=timestamp,
-                tags={"status": status},
-                unit="count",
-                description=f"Number of agents in {status} status"
-            ))
-            
-        # Recursos totales
-        total_resources = 0
-        for agent in agents:
-            agent_resources = self.framework.resource_manager.find_resources_by_owner(agent.id)
-            total_resources += len(agent_resources)
-            
-        metrics.append(Metric(
-            name="framework.resources.total",
-            type=MetricType.GAUGE,
-            value=total_resources,
-            timestamp=timestamp,
-            unit="count",
-            description="Total number of resources"
-        ))
-        
-        return metrics
-        
-    async def _collect_system_metrics(self, timestamp: datetime) -> List[Metric]:
-        """Recopilar métricas del sistema"""
-        metrics = []
-        
-        # CPU
-        cpu_percent = psutil.cpu_percent(interval=1)
-        metrics.append(Metric(
-            name="system.cpu.usage",
-            type=MetricType.GAUGE,
-            value=cpu_percent,
-            timestamp=timestamp,
-            unit="percent",
-            description="CPU usage percentage"
-        ))
-        
-        # Memoria
-        memory = psutil.virtual_memory()
-        metrics.append(Metric(
-            name="system.memory.usage",
-            type=MetricType.GAUGE,
-            value=memory.percent,
-            timestamp=timestamp,
-            unit="percent",
-            description="Memory usage percentage"
-        ))
-        
-        metrics.append(Metric(
-            name="system.memory.available",
-            type=MetricType.GAUGE,
-            value=memory.available / (1024**3),  # GB
-            timestamp=timestamp,
-            unit="GB",
-            description="Available memory in GB"
-        ))
-        
-        # Disco
-        disk = psutil.disk_usage('/')
-        metrics.append(Metric(
-            name="system.disk.usage",
-            type=MetricType.GAUGE,
-            value=(disk.used / disk.total) * 100,
-            timestamp=timestamp,
-            unit="percent",
-            description="Disk usage percentage"
-        ))
-        
-        # Red
-        net_io = psutil.net_io_counters()
-        metrics.append(Metric(
-            name="system.network.bytes_sent",
-            type=MetricType.COUNTER,
-            value=net_io.bytes_sent,
-            timestamp=timestamp,
-            unit="bytes",
-            description="Total bytes sent"
-        ))
-        
-        metrics.append(Metric(
-            name="system.network.bytes_recv",
-            type=MetricType.COUNTER,
-            value=net_io.bytes_recv,
-            timestamp=timestamp,
-            unit="bytes",
-            description="Total bytes received"
-        ))
-        
-        return metrics
-        
-    async def _collect_agent_metrics(self, timestamp: datetime) -> List[Metric]:
-        """Recopilar métricas específicas de agentes"""
-        metrics = []
-        
-        agents = self.framework.registry.list_all_agents()
-        
-        for agent in agents:
-            agent_tags = {
-                "agent_id": agent.id,
-                "agent_name": agent.name,
-                "namespace": agent.namespace
-            }
-            
-            # Tiempo desde último heartbeat
-            time_since_heartbeat = (timestamp - agent.last_heartbeat).total_seconds()
-            metrics.append(Metric(
-                name="agent.heartbeat.time_since_last",
-                type=MetricType.GAUGE,
-                value=time_since_heartbeat,
-                timestamp=timestamp,
-                tags=agent_tags,
-                unit="seconds",
-                description="Time since last agent heartbeat"
-            ))
-            
-            # Número de capacidades
-            metrics.append(Metric(
-                name="agent.capabilities.count",
-                type=MetricType.GAUGE,
-                value=len(agent.capabilities),
-                timestamp=timestamp,
-                tags=agent_tags,
-                unit="count",
-                description="Number of agent capabilities"
-            ))
-            
-            # Recursos del agente
-            agent_resources = self.framework.resource_manager.find_resources_by_owner(agent.id)
-            metrics.append(Metric(
-                name="agent.resources.count",
-                type=MetricType.GAUGE,
-                value=len(agent_resources),
-                timestamp=timestamp,
-                tags=agent_tags,
-                unit="count",
-                description="Number of resources owned by agent"
-            ))
-            
-        return metrics
-        
-    async def _collect_performance_metrics(self, timestamp: datetime) -> List[Metric]:
-        """Recopilar métricas de rendimiento"""
-        metrics = []
-        
-        # Tiempo de respuesta simulado (en implementación real, medirías operaciones reales)
-        import random
-        response_time = random.uniform(0.1, 2.0)  # Simular tiempo de respuesta
-        
-        metrics.append(Metric(
-            name="framework.response_time",
-            type=MetricType.TIMER,
-            value=response_time,
-            timestamp=timestamp,
-            unit="seconds",
-            description="Framework response time"
-        ))
-        
-        # Throughput simulado
-        throughput = random.uniform(10, 100)  # Operaciones por segundo
-        metrics.append(Metric(
-            name="framework.throughput",
-            type=MetricType.GAUGE,
-            value=throughput,
-            timestamp=timestamp,
-            unit="ops/sec",
-            description="Framework throughput"
-        ))
-        
-        return metrics
-        
-    def _add_metrics(self, metrics: List[Metric]):
-        """Añadir métricas al historial"""
-        self.metrics_history.extend(metrics)
-        
-        # Mantener límite de historial
-        if len(self.metrics_history) > self.max_history_size:
-            self.metrics_history = self.metrics_history[-self.max_history_size:]
-            
-    def get_metric_history(self, metric_name: str, duration_minutes: int = 60) -> List[Metric]:
-        """Obtener historial de una métrica específica"""
-        cutoff_time = datetime.now() - timedelta(minutes=duration_minutes)
-        
-        return [
-            metric for metric in self.metrics_history
-            if metric.name == metric_name and metric.timestamp >= cutoff_time
-        ]
-        
+        self._metrics: List[Metric] = []
+        self._metrics_by_name: Dict[str, List[Metric]] = {}
+        self.logger = logging.getLogger("MetricsCollector")
+
+    async def collect_system_metrics(self):
+        """Colecta métricas del sistema operativo."""
+        timestamp = datetime.utcnow()
+        try:
+            cpu_percent = psutil.cpu_percent(interval=None) # Non-blocking
+            mem_info = psutil.virtual_memory()
+            disk_usage = psutil.disk_usage('/')
+
+            self.record_metric(Metric("system.cpu.usage", MetricType.GAUGE, cpu_percent, timestamp, unit="%"))
+            self.record_metric(Metric("system.memory.total", MetricType.GAUGE, mem_info.total, timestamp, unit="bytes"))
+            self.record_metric(Metric("system.memory.available", MetricType.GAUGE, mem_info.available, timestamp, unit="bytes"))
+            self.record_metric(Metric("system.memory.percent", MetricType.GAUGE, mem_info.percent, timestamp, unit="%"))
+            self.record_metric(Metric("system.disk.total", MetricType.GAUGE, disk_usage.total, timestamp, unit="bytes", tags={"path": "/"}))
+            self.record_metric(Metric("system.disk.used", MetricType.GAUGE, disk_usage.used, timestamp, unit="bytes", tags={"path": "/"}))
+            self.record_metric(Metric("system.disk.percent", MetricType.GAUGE, disk_usage.percent, timestamp, unit="%", tags={"path": "/"}))
+
+            net_io = psutil.net_io_counters()
+            self.record_metric(Metric("system.network.bytes_sent", MetricType.COUNTER, net_io.bytes_sent, timestamp, unit="bytes"))
+            self.record_metric(Metric("system.network.bytes_recv", MetricType.COUNTER, net_io.bytes_recv, timestamp, unit="bytes"))
+
+            self.logger.debug("System metrics collected.")
+        except Exception as e:
+            self.logger.error(f"Error collecting system metrics: {e}")
+
+    async def collect_agent_metrics(self):
+        """Colecta métricas de los agentes del framework."""
+        timestamp = datetime.utcnow()
+        total_agents = len(self.framework.registry.list_all_agents())
+        active_agents = sum(1 for a in self.framework.registry.list_all_agents() if a.status == AgentStatus.ACTIVE)
+        error_agents = sum(1 for a in self.framework.registry.list_all_agents() if a.status == AgentStatus.ERROR)
+        busy_agents = sum(1 for a in self.framework.registry.list_all_agents() if a.status == AgentStatus.BUSY)
+
+        self.record_metric(Metric("agents.total", MetricType.GAUGE, total_agents, timestamp, description="Total number of agents"))
+        self.record_metric(Metric("agents.active", MetricType.GAUGE, active_agents, timestamp, description="Number of active agents"))
+        self.record_metric(Metric("agents.error", MetricType.GAUGE, error_agents, timestamp, description="Number of agents in error state"))
+        self.record_metric(Metric("agents.busy", MetricType.GAUGE, busy_agents, timestamp, description="Number of busy agents"))
+
+        for agent in self.framework.registry.list_all_agents():
+            self.record_metric(Metric(f"agent.{agent.namespace}.{agent.name}.status", MetricType.GAUGE, 1 if agent.status == AgentStatus.ACTIVE else 0, timestamp, tags={"agent_id": agent.id, "status": agent.status.value}))
+            # Podríamos añadir métricas específicas de cada agente si los agentes las exponen
+
+        self.logger.debug("Agent metrics collected.")
+
+    def record_metric(self, metric: Metric):
+        """Registra una métrica."""
+        self._metrics.append(metric)
+        if metric.name not in self._metrics_by_name:
+            self._metrics_by_name[metric.name] = []
+        self._metrics_by_name[metric.name].append(metric)
+        self.logger.debug(f"Recorded metric: {metric.name}={metric.value}")
+
+    def get_metrics_in_range(self, metric_name: str, start_time: datetime, end_time: datetime) -> List[Metric]:
+        """Obtiene métricas por nombre dentro de un rango de tiempo."""
+        if metric_name not in self._metrics_by_name:
+            return []
+        return [m for m in self._metrics_by_name[metric_name] if start_time <= m.timestamp <= end_time]
+
+    def get_latest_metric(self, metric_name: str) -> Optional[Metric]:
+        """Obtiene la última métrica registrada por nombre."""
+        if metric_name not in self._metrics_by_name or not self._metrics_by_name[metric_name]:
+            return None
+        return self._metrics_by_name[metric_name][-1] # Asume que las métricas se añaden cronológicamente
+
     def get_latest_metrics(self) -> Dict[str, Metric]:
-        """Obtener las métricas más recientes"""
-        latest_metrics = {}
-        
-        for metric in reversed(self.metrics_history):
-            key = f"{metric.name}:{json.dumps(metric.tags, sort_keys=True)}"
-            if key not in latest_metrics:
-                latest_metrics[key] = metric
-                
-        return latest_metrics
-        
-    def calculate_metric_statistics(self, metric_name: str, duration_minutes: int = 60) -> Dict[str, float]:
-        """Calcular estadísticas de una métrica"""
-        history = self.get_metric_history(metric_name, duration_minutes)
-        
-        if not history:
-            return {}
-            
-        values = [metric.value for metric in history]
-        
+        """Obtiene la última métrica de cada tipo registrado."""
+        latest: Dict[str, Metric] = {}
+        for name, metrics_list in self._metrics_by_name.items():
+            if metrics_list:
+                latest[name] = metrics_list[-1]
+        return latest
+
+    def calculate_metric_statistics(self, metric_name: str, window_seconds: int = 300) -> Optional[Dict[str, float]]:
+        """Calcula estadísticas básicas para una métrica en una ventana de tiempo."""
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(seconds=window_seconds)
+        relevant_metrics = self.get_metrics_in_range(metric_name, start_time, end_time)
+
+        if not relevant_metrics:
+            return None
+
+        values = [m.value for m in relevant_metrics]
+        if not values:
+            return None
+
         return {
-            "min": min(values),
-            "max": max(values),
+            "count": len(values),
             "mean": statistics.mean(values),
             "median": statistics.median(values),
-            "std_dev": statistics.stdev(values) if len(values) > 1 else 0,
-            "count": len(values)
+            "min": min(values),
+            "max": max(values),
+            "stdev": statistics.stdev(values) if len(values) > 1 else 0.0
         }
 
-# ================================
-# ALERTING SYSTEM
-# ================================
+    async def clear_old_metrics(self, retention_days: int = 7):
+        """Elimina métricas antiguas para liberar memoria."""
+        cutoff_time = datetime.utcnow() - timedelta(days=retention_days)
+        initial_count = len(self._metrics)
+        self._metrics = [m for m in self._metrics if m.timestamp >= cutoff_time]
+        
+        for metric_name in list(self._metrics_by_name.keys()):
+            self._metrics_by_name[metric_name] = [m for m in self._metrics_by_name[metric_name] if m.timestamp >= cutoff_time]
+            if not self._metrics_by_name[metric_name]:
+                del self._metrics_by_name[metric_name]
+        
+        removed_count = initial_count - len(self._metrics)
+        if removed_count > 0:
+            self.logger.info(f"Cleared {removed_count} old metrics (older than {retention_days} days).")
+
 
 class AlertManager:
-    """Gestor de alertas"""
-    
-    def __init__(self, metrics_collector: AdvancedMetricsCollector):
+    """Gestiona la creación, estado y notificaciones de alertas."""
+    def __init__(self, metrics_collector: MetricsCollector):
         self.metrics_collector = metrics_collector
-        self.alert_rules: List[AlertRule] = []
-        self.active_alerts: Dict[str, Alert] = {}
-        self.alert_history: List[Alert] = []
-        self.notification_handlers: List[Callable] = []
-        self.evaluation_interval = 30  # segundos
-        self.running = False
-        self.evaluation_task = None
-        self.last_alert_times: Dict[str, datetime] = {}
-        
-    def add_alert_rule(self, rule: AlertRule):
-        """Añadir regla de alerta"""
-        self.alert_rules.append(rule)
-        logging.info(f"Added alert rule: {rule.name}")
-        
-    def remove_alert_rule(self, rule_name: str) -> bool:
-        """Eliminar regla de alerta"""
-        self.alert_rules = [rule for rule in self.alert_rules if rule.name != rule_name]
-        return True
-        
-    def add_notification_handler(self, handler: Callable):
-        """Añadir handler de notificaciones"""
-        self.notification_handlers.append(handler)
-        
-    async def start_monitoring(self):
-        """Iniciar monitoreo de alertas"""
-        self.running = True
-        self.evaluation_task = asyncio.create_task(self._evaluation_loop())
-        logging.info("Alert monitoring started")
-        
-    async def stop_monitoring(self):
-        """Detener monitoreo de alertas"""
-        self.running = False
-        if self.evaluation_task:
-            self.evaluation_task.cancel()
-        logging.info("Alert monitoring stopped")
-        
-    async def _evaluation_loop(self):
-        """Loop principal de evaluación de alertas"""
-        while self.running:
-            try:
-                await self._evaluate_all_rules()
-                await asyncio.sleep(self.evaluation_interval)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Alert evaluation error: {e}")
-                await asyncio.sleep(5)
-                
-    async def _evaluate_all_rules(self):
-        """Evaluar todas las reglas de alerta"""
-        current_metrics = self.metrics_collector.get_latest_metrics()
-        
-        for rule in self.alert_rules:
-            if not rule.enabled:
+        self._alert_rules: Dict[str, Dict[str, Any]] = {}
+        self._active_alerts: Dict[str, Alert] = {}
+        self._alert_history: List[Alert] = []
+        self.logger = logging.getLogger("AlertManager")
+        self._notification_handlers: List[Callable[[Alert], Any]] = []
+
+    def define_alert_rule(self, rule_name: str, metric_name: str, threshold: float, severity: AlertSeverity,
+                          operator: str = ">", description: str = "", cooldown_seconds: int = 300):
+        """Define una nueva regla de alerta."""
+        self._alert_rules[rule_name] = {
+            "metric_name": metric_name,
+            "threshold": threshold,
+            "severity": severity,
+            "operator": operator,
+            "description": description,
+            "cooldown_seconds": cooldown_seconds,
+            "last_triggered": None
+        }
+        self.logger.info(f"Alert rule '{rule_name}' defined for metric '{metric_name}'")
+
+    async def evaluate_rules(self):
+        """Evalúa todas las reglas de alerta basadas en las últimas métricas."""
+        for rule_name, rule in self._alert_rules.items():
+            metric = self.metrics_collector.get_latest_metric(rule["metric_name"])
+            if not metric:
                 continue
-                
-            await self._evaluate_rule(rule, current_metrics)
-            
-    async def _evaluate_rule(self, rule: AlertRule, current_metrics: Dict[str, Metric]):
-        """Evaluar una regla específica"""
-        # Buscar métricas que coincidan con la regla
-        matching_metrics = [
-            metric for metric in current_metrics.values()
-            if metric.name == rule.metric_name
-        ]
-        
-        for metric in matching_metrics:
-            if self._check_condition(metric.value, rule.condition, rule.threshold):
-                await self._trigger_alert(rule, metric)
+
+            value = metric.value
+            threshold = rule["threshold"]
+            operator = rule["operator"]
+            triggered = False
+
+            if operator == ">" and value > threshold:
+                triggered = True
+            elif operator == "<" and value < threshold:
+                triggered = True
+            elif operator == ">=" and value >= threshold:
+                triggered = True
+            elif operator == "<=" and value <= threshold:
+                triggered = True
+            elif operator == "==" and value == threshold:
+                triggered = True
+            elif operator == "!=" and value != threshold:
+                triggered = True
+
+            if triggered:
+                await self._trigger_alert(rule_name, rule, metric)
             else:
-                await self._resolve_alert(rule, metric)
-                
-    def _check_condition(self, value: float, condition: str, threshold: float) -> bool:
-        """Verificar condición de alerta"""
-        try:
-            if condition.startswith(">="):
-                return value >= threshold
-            elif condition.startswith("<="):
-                return value <= threshold
-            elif condition.startswith(">"):
-                return value > threshold
-            elif condition.startswith("<"):
-                return value < threshold
-            elif condition.startswith("=="):
-                return value == threshold
-            elif condition.startswith("!="):
-                return value != threshold
-            else:
-                return eval(f"{value} {condition} {threshold}")
-        except Exception:
-            return False
-            
-    async def _trigger_alert(self, rule: AlertRule, metric: Metric):
-        """Activar alerta"""
-        alert_key = f"{rule.name}:{json.dumps(metric.tags, sort_keys=True)}"
-        
-        # Verificar cooldown
-        if alert_key in self.last_alert_times:
-            time_since_last = (datetime.now() - self.last_alert_times[alert_key]).total_seconds()
-            if time_since_last < rule.cooldown:
-                return
-                
-        # Verificar si ya existe alerta activa
-        if alert_key in self.active_alerts:
+                await self._resolve_alert(rule_name)
+
+    async def _trigger_alert(self, rule_name: str, rule: Dict[str, Any], metric: Metric):
+        """Dispara una alerta si se cumplen las condiciones y el cooldown lo permite."""
+        now = datetime.utcnow()
+        last_triggered = rule.get("last_triggered")
+        if last_triggered and (now - last_triggered).total_seconds() < rule["cooldown_seconds"]:
+            self.logger.debug(f"Alert rule {rule_name} is in cooldown. Skipping trigger.")
             return
-            
-        # Crear nueva alerta
-        alert = Alert(
-            id=f"alert_{int(time.time())}_{hash(alert_key) % 10000}",
-            rule_name=rule.name,
-            severity=rule.severity,
-            status=AlertStatus.ACTIVE,
-            message=f"{rule.description or rule.name}: {metric.name} = {metric.value} {rule.condition} {rule.threshold}",
-            triggered_at=datetime.now(),
-            tags=metric.tags,
-            metadata={
-                "metric_name": metric.name,
-                "metric_value": metric.value,
-                "threshold": rule.threshold,
-                "condition": rule.condition
-            }
-        )
-        
-        self.active_alerts[alert_key] = alert
-        self.alert_history.append(alert)
-        self.last_alert_times[alert_key] = datetime.now()
-        
-        # Enviar notificaciones
-        await self._send_notifications(alert)
-        
-        logging.warning(f"Alert triggered: {alert.message}")
-        
-    async def _resolve_alert(self, rule: AlertRule, metric: Metric):
-        """Resolver alerta"""
-        alert_key = f"{rule.name}:{json.dumps(metric.tags, sort_keys=True)}"
-        
-        if alert_key in self.active_alerts:
-            alert = self.active_alerts[alert_key]
-            alert.status = AlertStatus.RESOLVED
-            alert.resolved_at = datetime.now()
-            
-            del self.active_alerts[alert_key]
-            
-            # Enviar notificación de resolución
-            await self._send_notifications(alert)
-            
-            logging.info(f"Alert resolved: {alert.message}")
-            
-    async def _send_notifications(self, alert: Alert):
-        """Enviar notificaciones de alerta"""
-        for handler in self.notification_handlers:
-            try:
-                await handler(alert)
-            except Exception as e:
-                logging.error(f"Notification handler error: {e}")
-                
-    def acknowledge_alert(self, alert_id: str, acknowledged_by: str) -> bool:
-        """Reconocer alerta"""
-        for alert in self.active_alerts.values():
-            if alert.id == alert_id:
-                alert.status = AlertStatus.ACKNOWLEDGED
-                alert.acknowledged_at = datetime.now()
-                alert.acknowledged_by = acknowledged_by
-                return True
-        return False
-        
-    def get_active_alerts(self, severity: AlertSeverity = None) -> List[Alert]:
-        """Obtener alertas activas"""
-        alerts = list(self.active_alerts.values())
-        
-        if severity:
-            alerts = [alert for alert in alerts if alert.severity == severity]
-            
-        return sorted(alerts, key=lambda x: x.triggered_at, reverse=True)
-        
+
+        message = f"ALERTA: {rule['description']} - {rule['metric_name']} ({metric.value}{metric.unit}) {rule['operator']} {rule['threshold']}"
+        alert_id = f"alert-{rule_name}"
+
+        if alert_id not in self._active_alerts:
+            new_alert = Alert(
+                id=alert_id,
+                rule_name=rule_name,
+                severity=rule["severity"],
+                status=AlertStatus.ACTIVE,
+                triggered_at=now,
+                last_updated_at=now,
+                message=message,
+                details={"metric_value": metric.value, "threshold": rule["threshold"], "operator": rule["operator"]}
+            )
+            self._active_alerts[alert_id] = new_alert
+            self._alert_history.append(new_alert)
+            self.logger.warning(f"ALERT TRIGGERED: {message}")
+            await self._notify_alert(new_alert)
+        else:
+            # Update existing active alert
+            active_alert = self._active_alerts[alert_id]
+            if active_alert.status != AlertStatus.ACTIVE:
+                # Re-activate if it was resolved/acknowledged and re-triggered
+                active_alert.status = AlertStatus.ACTIVE
+                self.logger.warning(f"ALERT REACTIVATED: {message}")
+                await self._notify_alert(active_alert)
+            active_alert.last_updated_at = now
+            active_alert.message = message
+            active_alert.details = {"metric_value": metric.value, "threshold": rule["threshold"], "operator": rule["operator"]}
+            self.logger.debug(f"Alert {alert_id} re-triggered (still active).")
+
+        rule["last_triggered"] = now
+
+    async def _resolve_alert(self, rule_name: str):
+        """Resuelve una alerta si ya no se cumplen las condiciones."""
+        alert_id = f"alert-{rule_name}"
+        if alert_id in self._active_alerts and self._active_alerts[alert_id].status == AlertStatus.ACTIVE:
+            resolved_alert = self._active_alerts[alert_id]
+            resolved_alert.status = AlertStatus.RESOLVED
+            resolved_alert.resolved_at = datetime.utcnow()
+            resolved_alert.last_updated_at = datetime.utcnow()
+            self.logger.info(f"ALERT RESOLVED: {resolved_alert.message}")
+            await self._notify_alert(resolved_alert)
+            # No eliminar de _active_alerts inmediatamente para mantener un rastro reciente
+            # Podría ser eliminado por una tarea de limpieza posterior
+            del self._active_alerts[alert_id] # Eliminar para que pueda ser re-activada si las condiciones vuelven
+
+    def acknowledge_alert(self, alert_id: str, acknowledged_by: str):
+        """Marca una alerta como reconocida."""
+        if alert_id in self._active_alerts:
+            self._active_alerts[alert_id].status = AlertStatus.ACKNOWLEDGED
+            self._active_alerts[alert_id].acknowledged_by = acknowledged_by
+            self._active_alerts[alert_id].last_updated_at = datetime.utcnow()
+            self.logger.info(f"Alert {alert_id} acknowledged by {acknowledged_by}.")
+
+    def get_active_alerts(self) -> List[Alert]:
+        """Retorna todas las alertas activas."""
+        return list(self._active_alerts.values())
+
     def get_alert_history(self, limit: int = 100) -> List[Alert]:
-        """Obtener historial de alertas"""
-        return sorted(self.alert_history[-limit:], key=lambda x: x.triggered_at, reverse=True)
+        """Retorna el historial de alertas (las más recientes primero)."""
+        return sorted(self._alert_history, key=lambda x: x.triggered_at, reverse=True)[:limit]
 
-# ================================
-# NOTIFICATION HANDLERS
-# ================================
+    def register_notification_handler(self, handler: Callable[[Alert], Any]):
+        """Registra una función para manejar notificaciones de alerta."""
+        self._notification_handlers.append(handler)
+        self.logger.info(f"Registered notification handler: {handler.__name__}")
 
-class EmailNotificationHandler:
-    """Handler de notificaciones por email"""
-    
-    def __init__(self, smtp_host: str, smtp_port: int, username: str, 
-                 password: str, from_email: str, to_emails: List[str]):
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
-        self.username = username
-        self.password = password
-        self.from_email = from_email
-        self.to_emails = to_emails
-        
-    async def __call__(self, alert: Alert):
-        """Enviar notificación por email"""
+    async def _notify_alert(self, alert: Alert):
+        """Envía la alerta a todos los handlers registrados."""
+        for handler in self._notification_handlers:
+            try:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(alert)
+                else:
+                    handler(alert)
+            except Exception as e:
+                self.logger.error(f"Error in alert notification handler {handler.__name__}: {e}", exc_info=True)
+
+    async def email_notifier(self, alert: Alert, to_email: str, from_email: str, smtp_server: str, smtp_port: int, smtp_user: str, smtp_password: str):
+        """Ejemplo de handler de notificación por correo electrónico."""
+        subject = f"[{alert.severity.value.upper()}] ALERTA: {alert.rule_name}"
+        body = f"""
+        Alerta ID: {alert.id}
+        Regla: {alert.rule_name}
+        Severidad: {alert.severity.value.upper()}
+        Estado: {alert.status.value.upper()}
+        Mensaje: {alert.message}
+        Activada: {alert.triggered_at.isoformat()}
+        Última actualización: {alert.last_updated_at.isoformat()}
+        Detalles: {json.dumps(alert.details, indent=2)}
+        """
+
+        msg = MimeMultipart()
+        msg['From'] = from_email
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MimeText(body, 'plain'))
+
         try:
-            subject = f"[{alert.severity.value.upper()}] {alert.rule_name}"
-            
-            if alert.status == AlertStatus.ACTIVE:
-                body = f"""
-Alert Triggered
-
-Rule: {alert.rule_name}
-Severity: {alert.severity.value}
-Message: {alert.message}
-Triggered At: {alert.triggered_at.strftime('%Y-%m-%d %H:%M:%S')}
-
-Tags: {json.dumps(alert.tags, indent=2)}
-Metadata: {json.dumps(alert.metadata, indent=2)}
-                """
-            else:
-                body = f"""
-Alert Resolved
-
-Rule: {alert.rule_name}
-Message: {alert.message}
-Triggered At: {alert.triggered_at.strftime('%Y-%m-%d %H:%M:%S')}
-Resolved At: {alert.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if alert.resolved_at else 'N/A'}
-                """
-                
-            # Crear mensaje
-            msg = MimeMultipart()
-            msg['From'] = self.from_email
-            msg['To'] = ', '.join(self.to_emails)
-            msg['Subject'] = subject
-            msg.attach(MimeText(body, 'plain'))
-            
-            # Enviar email
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.username, self.password)
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(smtp_user, smtp_password)
                 server.send_message(msg)
-                
-            logging.info(f"Email notification sent for alert: {alert.id}")
-            
+            self.logger.info(f"Email notification sent for alert {alert.id} to {to_email}")
         except Exception as e:
-            logging.error(f"Failed to send email notification: {e}")
+            self.logger.error(f"Failed to send email notification for alert {alert.id}: {e}")
 
-class SlackNotificationHandler:
-    """Handler de notificaciones a Slack"""
-    
-    def __init__(self, webhook_url: str):
-        self.webhook_url = webhook_url
-        
-    async def __call__(self, alert: Alert):
-        """Enviar notificación a Slack"""
+    async def webhook_notifier(self, alert: Alert, webhook_url: str):
+        """Ejemplo de handler de notificación por webhook (ej. Slack, Teams)."""
+        payload = {
+            "alert_id": alert.id,
+            "rule_name": alert.rule_name,
+            "severity": alert.severity.value,
+            "status": alert.status.value,
+            "message": alert.message,
+            "timestamp": alert.triggered_at.isoformat(),
+            "details": alert.details
+        }
         try:
-            # Color según severidad
-            color_map = {
-                AlertSeverity.INFO: "#36a64f",
-                AlertSeverity.WARNING: "#ff9500", 
-                AlertSeverity.CRITICAL: "#ff0000",
-                AlertSeverity.FATAL: "#8B0000"
-            }
-            
-            color = color_map.get(alert.severity, "#36a64f")
-            
-            # Emoji según estado
-            emoji = "🚨" if alert.status == AlertStatus.ACTIVE else "✅"
-            
-            # Crear payload
-            payload = {
-                "text": f"{emoji} Alert {alert.status.value.title()}",
-                "attachments": [
-                    {
-                        "color": color,
-                        "fields": [
-                            {
-                                "title": "Rule",
-                                "value": alert.rule_name,
-                                "short": True
-                            },
-                            {
-                                "title": "Severity", 
-                                "value": alert.severity.value.upper(),
-                                "short": True
-                            },
-                            {
-                                "title": "Message",
-                                "value": alert.message,
-                                "short": False
-                            },
-                            {
-                                "title": "Triggered At",
-                                "value": alert.triggered_at.strftime('%Y-%m-%d %H:%M:%S'),
-                                "short": True
-                            }
-                        ]
-                    }
-                ]
-            }
-            
-            # Enviar a Slack
             async with aiohttp.ClientSession() as session:
-                async with session.post(self.webhook_url, json=payload) as response:
-                    if response.status == 200:
-                        logging.info(f"Slack notification sent for alert: {alert.id}")
-                    else:
-                        logging.error(f"Failed to send Slack notification: {response.status}")
-                        
-        except Exception as e:
-            logging.error(f"Failed to send Slack notification: {e}")
+                async with session.post(webhook_url, json=payload) as response:
+                    response.raise_for_status()
+                    self.logger.info(f"Webhook notification sent for alert {alert.id} to {webhook_url}")
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Failed to send webhook notification for alert {alert.id} to {webhook_url}: {e}")
 
-class WebhookNotificationHandler:
-    """Handler de notificaciones por webhook"""
-    
-    def __init__(self, webhook_url: str, auth_token: str = None):
-        self.webhook_url = webhook_url
-        self.auth_token = auth_token
-        
-    async def __call__(self, alert: Alert):
-        """Enviar notificación por webhook"""
-        try:
-            headers = {"Content-Type": "application/json"}
-            if self.auth_token:
-                headers["Authorization"] = f"Bearer {self.auth_token}"
-                
-            payload = {
-                "alert_id": alert.id,
-                "rule_name": alert.rule_name,
-                "severity": alert.severity.value,
-                "status": alert.status.value,
-                "message": alert.message,
-                "triggered_at": alert.triggered_at.isoformat(),
-                "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None,
-                "tags": alert.tags,
-                "metadata": alert.metadata
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(self.webhook_url, json=payload, headers=headers) as response:
-                    if response.status == 200:
-                        logging.info(f"Webhook notification sent for alert: {alert.id}")
-                    else:
-                        logging.error(f"Failed to send webhook notification: {response.status}")
-                        
-        except Exception as e:
-            logging.error(f"Failed to send webhook notification: {e}")
-
-# ================================
-# HEALTH CHECK SYSTEM
-# ================================
 
 class HealthChecker:
-    """Sistema de health checks"""
-    
+    """Realiza chequeos de salud de los componentes del framework y agentes."""
     def __init__(self, framework: AgentFramework):
         self.framework = framework
-        self.health_checks: Dict[str, Callable] = {}
-        self.check_interval = 60  # segundos
-        self.running = False
-        self.check_task = None
-        self.last_results: Dict[str, Dict[str, Any]] = {}
-        
-    def register_health_check(self, name: str, check_function: Callable):
-        """Registrar health check"""
-        self.health_checks[name] = check_function
-        
-    async def start_health_checks(self):
-        """Iniciar health checks automáticos"""
-        self.running = True
-        self.check_task = asyncio.create_task(self._health_check_loop())
-        logging.info("Health checks started")
-        
-    async def stop_health_checks(self):
-        """Detener health checks"""
-        self.running = False
-        if self.check_task:
-            self.check_task.cancel()
-        logging.info("Health checks stopped")
-        
-    async def _health_check_loop(self):
-        """Loop de health checks"""
-        while self.running:
-            try:
-                await self._run_all_health_checks()
-                await asyncio.sleep(self.check_interval)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Health check loop error: {e}")
-                await asyncio.sleep(5)
-                
-    async def _run_all_health_checks(self):
-        """Ejecutar todos los health checks"""
-        for name, check_function in self.health_checks.items():
-            try:
-                result = await self._run_health_check(name, check_function)
-                self.last_results[name] = result
-            except Exception as e:
-                logging.error(f"Health check {name} failed: {e}")
-                self.last_results[name] = {
-                    "status": "error",
-                    "message": str(e),
-                    "timestamp": datetime.now().isoformat()
-                }
-                
-    async def _run_health_check(self, name: str, check_function: Callable) -> Dict[str, Any]:
-        """Ejecutar un health check específico"""
-        start_time = time.time()
-        
+        self._component_health: Dict[str, HealthStatus] = {}
+        self.logger = logging.getLogger("HealthChecker")
+
+    async def check_framework_health(self):
+        """Chequea la salud de los componentes internos del framework."""
+        timestamp = datetime.utcnow()
+        # Verificar Message Bus
+        msg_bus_status = "healthy"
+        msg_bus_message = "Message bus is responsive."
         try:
-            if asyncio.iscoroutinefunction(check_function):
-                result = await check_function()
-            else:
-                result = check_function()
-                
-            duration = time.time() - start_time
-            
-            return {
-                "status": "healthy" if result else "unhealthy",
-                "duration": duration,
-                "timestamp": datetime.now().isoformat(),
-                "details": result if isinstance(result, dict) else {"result": result}
-            }
-            
+            # Simular un envío de mensaje (no intrusivo) para verificar actividad
+            test_message = BaseAgent("test.namespace", "test_agent", self.framework)
+            test_message.id = "test_sender"
+            await self.framework.message_bus.publish(
+                AgentMessage(sender_id="health_check", receiver_id="non_existent_agent", message_type="heartbeat", payload={})
+            )
         except Exception as e:
-            duration = time.time() - start_time
-            return {
-                "status": "error",
-                "duration": duration,
-                "timestamp": datetime.now().isoformat(),
-                "message": str(e)
-            }
+            msg_bus_status = "unhealthy"
+            msg_bus_message = f"Message bus error: {e}"
+            self.logger.error(msg_bus_message)
+        self._component_health["message_bus"] = HealthStatus("Message Bus", msg_bus_status, timestamp, msg_bus_message)
+
+        # Verificar Agent Registry
+        registry_status = "healthy"
+        registry_message = f"Registry contains {len(self.framework.registry.list_all_agents())} agents."
+        try:
+            if not isinstance(self.framework.registry.list_all_agents(), list):
+                raise TypeError("Agent registry did not return a list.")
+        except Exception as e:
+            registry_status = "unhealthy"
+            registry_message = f"Agent Registry error: {e}"
+            self.logger.error(registry_message)
+        self._component_health["agent_registry"] = HealthStatus("Agent Registry", registry_status, timestamp, registry_message)
+
+        # Verificar Resource Manager
+        resource_manager_status = "healthy"
+        resource_manager_message = f"Resource Manager tracks {len(self.framework.resource_manager.list_all_resources())} resources."
+        try:
+            if not isinstance(self.framework.resource_manager.list_all_resources(), list):
+                raise TypeError("Resource Manager did not return a list.")
+        except Exception as e:
+            resource_manager_status = "unhealthy"
+            resource_manager_message = f"Resource Manager error: {e}"
+            self.logger.error(resource_manager_message)
+        self._component_health["resource_manager"] = HealthStatus("Resource Manager", resource_manager_status, timestamp, resource_manager_message)
+
+        self.logger.debug("Framework health checked.")
+
+    async def check_agent_health(self):
+        """Chequea la salud de cada agente individualmente."""
+        timestamp = datetime.utcnow()
+        for agent in self.framework.registry.list_all_agents():
+            status = "healthy"
+            message = "Agent is responding and active."
+            if agent.status == AgentStatus.ERROR:
+                status = "unhealthy"
+                message = "Agent is in ERROR state."
+            elif agent.status == AgentStatus.TERMINATED:
+                status = "unhealthy"
+                message = "Agent is TERMINATED."
+            elif agent.status == AgentStatus.INITIALIZING:
+                status = "degraded"
+                message = "Agent is still INITIALIZING."
             
+            # Podríamos enviar un mensaje de heartbeat al agente y esperar una respuesta
+            # Para una demo simplificada, nos basamos en el estado reportado
+            
+            self._component_health[f"agent.{agent.id}"] = HealthStatus(
+                f"Agent {agent.name}", status, timestamp, message, {"agent_status": agent.status.value}
+            )
+        self.logger.debug("Agent health checked.")
+
     def get_health_status(self) -> Dict[str, Any]:
-        """Obtener estado general de salud"""
+        """Retorna un resumen del estado de salud general."""
         overall_status = "healthy"
-        
-        for result in self.last_results.values():
-            if result.get("status") != "healthy":
+        for component, status_obj in self._component_health.items():
+            if status_obj.status == "unhealthy":
                 overall_status = "unhealthy"
                 break
-                
+            elif status_obj.status == "degraded" and overall_status == "healthy":
+                overall_status = "degraded"
+        
         return {
             "overall_status": overall_status,
-            "checks": self.last_results,
-            "timestamp": datetime.now().isoformat()
+            "components": {k: asdict(v) for k, v in self._component_health.items()}
         }
 
-# ================================
-# MONITORING ORCHESTRATOR
-# ================================
-
-class MonitoringOrchestrator:
-    """Orquestador principal de monitoreo"""
-    
+class MonitoringSystem:
+    """Sistema de Monitoreo principal que orquesta la recolección, alerta y chequeo de salud."""
     def __init__(self, framework: AgentFramework):
         self.framework = framework
-        self.metrics_collector = AdvancedMetricsCollector(framework)
+        self.metrics_collector = MetricsCollector(framework)
         self.alert_manager = AlertManager(self.metrics_collector)
         self.health_checker = HealthChecker(framework)
-        
+        self._monitoring_task: Optional[asyncio.Task] = None
+        self._is_running = False
+        self.logger = logging.getLogger("MonitoringSystem")
+
         # Configurar reglas de alerta por defecto
         self._setup_default_alert_rules()
-        
-        # Configurar health checks por defecto
-        self._setup_default_health_checks()
-        
+
     def _setup_default_alert_rules(self):
-        """Configurar reglas de alerta por defecto"""
-        rules = [
-            AlertRule(
-                name="high_cpu_usage",
-                metric_name="system.cpu.usage",
-                condition=">",
-                threshold=80.0,
-                severity=AlertSeverity.WARNING,
-                description="High CPU usage detected"
-            ),
-            AlertRule(
-                name="high_memory_usage", 
-                metric_name="system.memory.usage",
-                condition=">",
-                threshold=85.0,
-                severity=AlertSeverity.WARNING,
-                description="High memory usage detected"
-            ),
-            AlertRule(
-                name="critical_memory_usage",
-                metric_name="system.memory.usage", 
-                condition=">",
-                threshold=95.0,
-                severity=AlertSeverity.CRITICAL,
-                description="Critical memory usage detected"
-            ),
-            AlertRule(
-                name="agent_heartbeat_timeout",
-                metric_name="agent.heartbeat.time_since_last",
-                condition=">", 
-                threshold=120.0,  # 2 minutos
-                severity=AlertSeverity.WARNING,
-                description="Agent heartbeat timeout"
-            ),
-            AlertRule(
-                name="no_active_agents",
-                metric_name="framework.agents.total",
-                condition="==",
-                threshold=0.0,
-                severity=AlertSeverity.CRITICAL,
-                description="No active agents in framework"
-            )
-        ]
-        
-        for rule in rules:
-            self.alert_manager.add_alert_rule(rule)
-            
-    def _setup_default_health_checks(self):
-        """Configurar health checks por defecto"""
-        
-        async def framework_health():
-            """Health check del framework"""
-            agents = self.framework.registry.list_all_agents()
-            active_agents = [a for a in agents if a.status == AgentStatus.ACTIVE]
-            
-            return {
-                "total_agents": len(agents),
-                "active_agents": len(active_agents),
-                "healthy": len(active_agents) > 0
-            }
-            
-        async def system_resources_health():
-            """Health check de recursos del sistema"""
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
-            
-            healthy = (cpu_percent < 90 and 
-                      memory.percent < 90 and 
-                      (disk.used / disk.total) * 100 < 90)
-            
-            return {
-                "cpu_usage": cpu_percent,
-                "memory_usage": memory.percent,
-                "disk_usage": (disk.used / disk.total) * 100,
-                "healthy": healthy
-            }
-            
-        self.health_checker.register_health_check("framework", framework_health)
-        self.health_checker.register_health_check("system_resources", system_resources_health)
-        
-    async def start_monitoring(self):
-        """Iniciar monitoreo completo"""
-        await self.metrics_collector.start_collection()
-        await self.alert_manager.start_monitoring()
-        await self.health_checker.start_health_checks()
-        
-        logging.info("Complete monitoring started")
-        
+        """Configura algunas reglas de alerta básicas."""
+        self.alert_manager.define_alert_rule(
+            rule_name="high_cpu_usage",
+            metric_name="system.cpu.usage",
+            threshold=80.0,
+            severity=AlertSeverity.WARNING,
+            operator=">",
+            description="System CPU usage is high"
+        )
+        self.alert_manager.define_alert_rule(
+            rule_name="critical_cpu_usage",
+            metric_name="system.cpu.usage",
+            threshold=95.0,
+            severity=AlertSeverity.CRITICAL,
+            operator=">",
+            description="System CPU usage is critically high"
+        )
+        self.alert_manager.define_alert_rule(
+            rule_name="low_memory_available",
+            metric_name="system.memory.percent",
+            threshold=90.0,
+            severity=AlertSeverity.WARNING,
+            operator=">",
+            description="System memory usage is high"
+        )
+        self.alert_manager.define_alert_rule(
+            rule_name="agent_in_error_state",
+            metric_name="agents.error",
+            threshold=0.0,
+            severity=AlertSeverity.CRITICAL,
+            operator=">",
+            description="One or more agents are in an error state"
+        )
+        self.logger.info("Default alert rules set up.")
+
+    async def start_monitoring(self, interval_seconds: int = 5):
+        """Inicia el proceso de monitoreo en un bucle continuo."""
+        if self._is_running:
+            self.logger.warning("Monitoring system is already running.")
+            return
+
+        self.logger.info("Starting monitoring system...")
+        self._is_running = True
+        self._monitoring_task = asyncio.create_task(self._monitoring_loop(interval_seconds))
+        self.logger.info("Monitoring system started.")
+
+    async def _monitoring_loop(self, interval_seconds: int):
+        """Bucle principal de monitoreo."""
+        while self._is_running:
+            start_time = time.time()
+            try:
+                await self.metrics_collector.collect_system_metrics()
+                await self.metrics_collector.collect_agent_metrics()
+                await self.alert_manager.evaluate_rules()
+                await self.health_checker.check_framework_health()
+                await self.health_checker.check_agent_health()
+                await self.metrics_collector.clear_old_metrics(retention_days=7)
+            except asyncio.CancelledError:
+                self.logger.info("Monitoring loop cancelled.")
+                break
+            except Exception as e:
+                self.logger.error(f"Error in monitoring loop: {e}", exc_info=True)
+
+            elapsed_time = time.time() - start_time
+            sleep_time = interval_seconds - elapsed_time
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+            else:
+                self.logger.warning(f"Monitoring loop took longer than interval ({elapsed_time:.2f}s vs {interval_seconds}s)")
+
     async def stop_monitoring(self):
-        """Detener monitoreo completo"""
-        await self.metrics_collector.stop_collection()
-        await self.alert_manager.stop_monitoring()
-        await self.health_checker.stop_health_checks()
-        
-        logging.info("Complete monitoring stopped")
-        
-    def add_notification_handler(self, handler):
-        """Añadir handler de notificaciones"""
-        self.alert_manager.add_notification_handler(handler)
-        
+        """Detiene el proceso de monitoreo."""
+        if not self._is_running:
+            self.logger.warning("Monitoring system is not running.")
+            return
+
+        self.logger.info("Stopping monitoring system...")
+        self._is_running = False
+        if self._monitoring_task:
+            self._monitoring_task.cancel()
+            try:
+                await self._monitoring_task
+            except asyncio.CancelledError:
+                pass
+        self.logger.info("Monitoring system stopped.")
+
     def get_monitoring_status(self) -> Dict[str, Any]:
-        """Obtener estado completo del monitoreo"""
+        """Obtiene un resumen del estado del sistema de monitoreo."""
         return {
+            "system_status": "Running" if self._is_running else "Stopped",
             "metrics": {
-                "total_collected": len(self.metrics_collector.metrics_history),
-                "collection_running": self.metrics_collector.running
+                "total_collected": len(self.metrics_collector._metrics),
+                "unique_metric_types": len(self.metrics_collector._metrics_by_name)
             },
             "alerts": {
-                "total_rules": len(self.alert_manager.alert_rules),
-                "active_alerts": len(self.alert_manager.active_alerts),
-                "monitoring_running": self.alert_manager.running
+                "active_alerts": len(self.alert_manager.get_active_alerts()),
+                "total_rules": len(self.alert_manager._alert_rules)
             },
-            "health_checks": {
-                "total_checks": len(self.health_checker.health_checks),
-                "last_results": self.health_checker.last_results,
-                "checking_running": self.health_checker.running
-            }
+            "health_checks": self.health_checker.get_health_status()
         }
 
-# ================================
-# EXAMPLE USAGE
-# ================================
+    def register_alert_notification_channel(self, handler: Callable[[Alert], Any]):
+        """Registra un canal de notificación de alertas."""
+        self.alert_manager.register_notification_handler(handler)
 
-async def monitoring_demo():
-    """Demo del sistema de monitoreo"""
-    
-    logging.basicConfig(level=logging.INFO)
-    
-    print("📊 Advanced Monitoring System Demo")
-    print("="*60)
-    
-    # Crear framework y agentes
-    from core.autonomous_agent_framework import AgentFramework
-    from core.specialized_agents import ExtendedAgentFactory
-    
-    framework = AgentFramework()
+async def demo():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger("Monitoring_Demo")
+
+    # Inicializar el framework de agentes (simulado para la demo)
+    framework = AgentFramework(log_level=logging.WARNING) # Usar WARNING para reducir logs de framework
     await framework.start()
-    
+
+    # Inicializar un agente dummy para la demo
+    class DummyAgent(BaseAgent):
+        def __init__(self, name: str, framework_ref):
+            super().__init__("agent.dummy", name, framework_ref)
+            self._status_cycle = [AgentStatus.ACTIVE, AgentStatus.BUSY, AgentStatus.ERROR, AgentStatus.IDLE]
+            self._status_index = 0
+
+        async def initialize(self) -> bool:
+            self.logger.info(f"DummyAgent {self.name} initialized.")
+            return True
+
+        async def execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+            if action == "cycle_status":
+                self._status_index = (self._status_index + 1) % len(self._status_cycle)
+                self.status = self._status_cycle[self._status_index]
+                self.logger.info(f"DummyAgent {self.name} status changed to {self.status.value}")
+                return {"new_status": self.status.value}
+            return {"error": "Unknown action"}
+
+    # Registrar el tipo de agente en el AgentFactory
+    from core.autonomous_agent_framework import AgentFactory
+    AgentFactory.register_agent_type("agent.dummy", DummyAgent)
+
     # Crear algunos agentes
-    strategist = ExtendedAgentFactory.create_agent("agent.planning.strategist", "strategist", framework)
-    generator = ExtendedAgentFactory.create_agent("agent.build.code.generator", "generator", framework)
-    
-    await strategist.start()
-    await generator.start()
-    
-    # Crear sistema de monitoreo
-    monitoring = MonitoringOrchestrator(framework)
-    
-    # Configurar notificaciones (simuladas)
-    class ConsoleNotificationHandler:
-        async def __call__(self, alert: Alert):
-            status_emoji = "🚨" if alert.status == AlertStatus.ACTIVE else "✅"
-            print(f"{status_emoji} ALERT [{alert.severity.value.upper()}]: {alert.message}")
-            
-    monitoring.add_notification_handler(ConsoleNotificationHandler())
-    
-    # Iniciar monitoreo
-    await monitoring.start_monitoring()
-    
-    print(f"\n✅ Monitoring started")
-    print(f"   Agents: {len(framework.registry.list_all_agents())}")
-    print(f"   Alert rules: {len(monitoring.alert_manager.alert_rules)}")
-    print(f"   Health checks: {len(monitoring.health_checker.health_checks)}")
-    
-    # Simular actividad durante 2 minutos
-    print(f"\n⏳ Running monitoring for 2 minutes...")
-    print(f"   Watch for metrics collection and alerts...")
-    
-    try:
-        for i in range(24):  # 2 minutos en intervalos de 5 segundos
-            await asyncio.sleep(5)
-            
-            # Mostrar progreso cada 30 segundos
-            if i % 6 == 0:
-                status = monitoring.get_monitoring_status()
-                print(f"   📈 Metrics collected: {status['metrics']['total_collected']}")
-                print(f"   🚨 Active alerts: {status['alerts']['active_alerts']}")
-                
-                # Mostrar últimas métricas
-                latest_metrics = monitoring.metrics_collector.get_latest_metrics()
-                for metric_key, metric in list(latest_metrics.items())[:3]:
-                    print(f"   📊 {metric.name}: {metric.value:.2f} {metric.unit}")
-                    
-    except KeyboardInterrupt:
-        print("\n🛑 Demo interrupted")
-        
-    # Mostrar resultados finales
-    print(f"\n📋 Final Results:")
-    
-    # Health status
-    health_status = monitoring.health_checker.get_health_status()
-    print(f"   🏥 Overall health: {health_status['overall_status']}")
-    
-    # Métricas estadísticas
-    cpu_stats = monitoring.metrics_collector.calculate_metric_statistics("system.cpu.usage")
-    if cpu_stats:
-        print(f"   💻 CPU usage - avg: {cpu_stats['mean']:.1f}%, max: {cpu_stats['max']:.1f}%")
-        
-    # Historial de alertas
+    await framework.agent_manager.create_agent("agent.dummy", "agent_X", DummyAgent)
+    await framework.agent_manager.create_agent("agent.dummy", "agent_Y", DummyAgent)
+
+    # Inicializar el sistema de monitoreo
+    monitoring = MonitoringSystem(framework)
+
+    # Registrar un handler de notificación simple para la demo
+    async def simple_notification(alert: Alert):
+        logger.info(f"🔔 NOTIFICACIÓN: {alert.message} (Severidad: {alert.severity.value})")
+
+    monitoring.register_alert_notification_channel(simple_notification)
+
+    # Demo
+    print("--- Monitoring System Demo ---")
+
+    # 1. Iniciar monitoreo
+    print("\n1. Starting monitoring system (collecting metrics, evaluating alerts, checking health)...")
+    await monitoring.start_monitoring(interval_seconds=1) # Monitoreo rápido para la demo
+
+    # Dar tiempo para que se recolecten métricas y se evalúen alertas
+    print("   Waiting for initial metrics and alerts...")
+    await asyncio.sleep(3) # Permite 3 ciclos de monitoreo
+
+    # 2. Obtener estado actual
+    print("\n2. Current Monitoring Status:")
+    status = monitoring.get_monitoring_status()
+    print(f"   System Status: {status['system_status']}")
+    print(f"   Metrics collected: {status['metrics']['total_collected']}")
+    print(f"   Active alerts: {status['alerts']['active_alerts']}")
+    print(f"   Overall health: {status['health_checks']['overall_status']}")
+
+    # Mostrar últimas métricas
+    latest_metrics = monitoring.metrics_collector.get_latest_metrics()
+    print("\n   Latest Metrics:")
+    for metric_key, metric in list(latest_metrics.items())[:5]: # Mostrar solo las primeras 5
+        print(f"     - {metric.name}: {metric.value:.2f} {metric.unit}")
+
+    # Mostrar alertas activas
+    active_alerts = monitoring.alert_manager.get_active_alerts()
+    print(f"\n   Active Alerts ({len(active_alerts)}):")
+    for alert in active_alerts:
+        print(f"     - [{alert.severity.value.upper()}] {alert.rule_name}: {alert.message}")
+
+    # 3. Simular un cambio de estado en un agente para activar una alerta (si hay agentes en error)
+    print("\n3. Simulating agent error state to trigger alert...")
+    agent_x = framework.registry.get_agent(next(iter(framework.registry._agents.keys())))
+    if agent_x:
+        # Forzar al agente a entrar en estado de error
+        agent_x.status = AgentStatus.ERROR
+        print(f"   Agent {agent_x.name} manually set to ERROR state.")
+
+    print("   Waiting for monitoring system to detect agent error and trigger alert...")
+    await asyncio.sleep(2) # Dar tiempo para que el monitoreo detecte el cambio
+
+    print("\n   Checking active alerts after simulating error:")
+    active_alerts_after_error = monitoring.alert_manager.get_active_alerts()
+    for alert in active_alerts_after_error:
+        print(f"     - [{alert.severity.value.upper()}] {alert.rule_name}: {alert.message} (Status: {alert.status.value})")
+
+    # 4. Simular resolución de alerta
+    print("\n4. Simulating alert resolution by setting agent back to active...")
+    if agent_x:
+        agent_x.status = AgentStatus.ACTIVE
+        print(f"   Agent {agent_x.name} manually set back to ACTIVE state.")
+
+    print("   Waiting for monitoring system to resolve alert...")
+    await asyncio.sleep(2)
+
+    print("\n   Checking active alerts after simulating resolution:")
+    active_alerts_after_resolution = monitoring.alert_manager.get_active_alerts()
+    if not active_alerts_after_resolution:
+        print("     No active alerts. Alert resolved successfully.")
+    for alert in active_alerts_after_resolution:
+         print(f"     - [{alert.severity.value.upper()}] {alert.rule_name}: {alert.message} (Status: {alert.status.value})")
+
+    # 5. Obtener historial de alertas
+    print("\n5. Recent Alert History:")
     alert_history = monitoring.alert_manager.get_alert_history(limit=5)
-    print(f"   🚨 Recent alerts: {len(alert_history)}")
-    for alert in alert_history[:3]:
-        print(f"      - {alert.rule_name}: {alert.status.value}")
-    
-    # Detener monitoreo
+    if not alert_history:
+        print("   No alerts in history.")
+    for i, alert in enumerate(alert_history, 1):
+        print(f"   {i}. ID: {alert.id[:8]}..., Rule: {alert.rule_name}, Severity: {alert.severity.value}, Status: {alert.status.value}, Triggered: {alert.triggered_at.strftime('%H:%M:%S')}")
+
+    # Cleanup
+    print("\n--- Demo Cleanup ---")
     await monitoring.stop_monitoring()
     await framework.stop()
-    
-    print(f"\n✅ Monitoring demo completed!")
+    print("Monitoring system and framework stopped.")
 
 if __name__ == "__main__":
-    asyncio.run(monitoring_demo())
+    asyncio.run(demo())

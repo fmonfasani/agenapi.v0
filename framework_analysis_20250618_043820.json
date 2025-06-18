@@ -1,0 +1,4569 @@
+{
+  "timestamp": "2025-06-18T04:38:20.334671",
+  "analysis": {
+    "files_analyzed": 16,
+    "total_lines": 13733,
+    "issues": [
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1043,
+        "severity": "low",
+        "description": "Uso de print() en línea 1043",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1050,
+        "severity": "low",
+        "description": "Uso de print() en línea 1050",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1051,
+        "severity": "low",
+        "description": "Uso de print() en línea 1051",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1052,
+        "severity": "low",
+        "description": "Uso de print() en línea 1052",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1053,
+        "severity": "low",
+        "description": "Uso de print() en línea 1053",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1059,
+        "severity": "low",
+        "description": "Uso de print() en línea 1059",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1064,
+        "severity": "low",
+        "description": "Uso de print() en línea 1064",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1143,
+        "severity": "low",
+        "description": "Uso de print() en línea 1143",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1158,
+        "severity": "low",
+        "description": "Uso de print() en línea 1158",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1161,
+        "severity": "low",
+        "description": "Uso de print() en línea 1161",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1208,
+        "severity": "low",
+        "description": "Uso de print() en línea 1208",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1319,
+        "severity": "low",
+        "description": "Uso de print() en línea 1319",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1325,
+        "severity": "low",
+        "description": "Uso de print() en línea 1325",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1326,
+        "severity": "low",
+        "description": "Uso de print() en línea 1326",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1331,
+        "severity": "low",
+        "description": "Uso de print() en línea 1331",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1346,
+        "severity": "low",
+        "description": "Uso de print() en línea 1346",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1347,
+        "severity": "low",
+        "description": "Uso de print() en línea 1347",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1367,
+        "severity": "low",
+        "description": "Uso de print() en línea 1367",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1368,
+        "severity": "low",
+        "description": "Uso de print() en línea 1368",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1369,
+        "severity": "low",
+        "description": "Uso de print() en línea 1369",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1374,
+        "severity": "low",
+        "description": "Uso de print() en línea 1374",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1375,
+        "severity": "low",
+        "description": "Uso de print() en línea 1375",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1376,
+        "severity": "low",
+        "description": "Uso de print() en línea 1376",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1377,
+        "severity": "low",
+        "description": "Uso de print() en línea 1377",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1378,
+        "severity": "low",
+        "description": "Uso de print() en línea 1378",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1381,
+        "severity": "low",
+        "description": "Uso de print() en línea 1381",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1383,
+        "severity": "low",
+        "description": "Uso de print() en línea 1383",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1384,
+        "severity": "low",
+        "description": "Uso de print() en línea 1384",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "framework_auto_improvement.py",
+        "line": 1388,
+        "severity": "low",
+        "description": "Uso de print() en línea 1388",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 165,
+        "class": "ComplexityAnalyzer",
+        "severity": "low",
+        "description": "Clase ComplexityAnalyzer sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 170,
+        "function": "visit_FunctionDef",
+        "severity": "low",
+        "description": "Función pública visit_FunctionDef sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 186,
+        "function": "visit_If",
+        "severity": "low",
+        "description": "Función pública visit_If sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 190,
+        "function": "visit_For",
+        "severity": "low",
+        "description": "Función pública visit_For sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 194,
+        "function": "visit_While",
+        "severity": "low",
+        "description": "Función pública visit_While sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 207,
+        "class": "PatternAnalyzer",
+        "severity": "low",
+        "description": "Clase PatternAnalyzer sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 212,
+        "function": "visit_Import",
+        "severity": "low",
+        "description": "Función pública visit_Import sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 216,
+        "function": "visit_ImportFrom",
+        "severity": "low",
+        "description": "Función pública visit_ImportFrom sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 220,
+        "function": "visit_ClassDef",
+        "severity": "low",
+        "description": "Función pública visit_ClassDef sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 250,
+        "class": "DocAnalyzer",
+        "severity": "low",
+        "description": "Clase DocAnalyzer sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 251,
+        "function": "visit_FunctionDef",
+        "severity": "low",
+        "description": "Función pública visit_FunctionDef sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "framework_auto_improvement.py",
+        "line": 263,
+        "function": "visit_ClassDef",
+        "severity": "low",
+        "description": "Función pública visit_ClassDef sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 37,
+        "severity": "low",
+        "description": "Uso de print() en línea 37",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 38,
+        "severity": "low",
+        "description": "Uso de print() en línea 38",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 42,
+        "severity": "low",
+        "description": "Uso de print() en línea 42",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 123,
+        "severity": "low",
+        "description": "Uso de print() en línea 123",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 129,
+        "severity": "low",
+        "description": "Uso de print() en línea 129",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 130,
+        "severity": "low",
+        "description": "Uso de print() en línea 130",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 271,
+        "severity": "low",
+        "description": "Uso de print() en línea 271",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 272,
+        "severity": "low",
+        "description": "Uso de print() en línea 272",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 273,
+        "severity": "low",
+        "description": "Uso de print() en línea 273",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 274,
+        "severity": "low",
+        "description": "Uso de print() en línea 274",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 275,
+        "severity": "low",
+        "description": "Uso de print() en línea 275",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 276,
+        "severity": "low",
+        "description": "Uso de print() en línea 276",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 277,
+        "severity": "low",
+        "description": "Uso de print() en línea 277",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 279,
+        "severity": "low",
+        "description": "Uso de print() en línea 279",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 282,
+        "severity": "low",
+        "description": "Uso de print() en línea 282",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 284,
+        "severity": "low",
+        "description": "Uso de print() en línea 284",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 287,
+        "severity": "low",
+        "description": "Uso de print() en línea 287",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 302,
+        "severity": "low",
+        "description": "Uso de print() en línea 302",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 303,
+        "severity": "low",
+        "description": "Uso de print() en línea 303",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 325,
+        "severity": "low",
+        "description": "Uso de print() en línea 325",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 438,
+        "severity": "low",
+        "description": "Uso de print() en línea 438",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 477,
+        "severity": "low",
+        "description": "Uso de print() en línea 477",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 629,
+        "severity": "low",
+        "description": "Uso de print() en línea 629",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 632,
+        "severity": "low",
+        "description": "Uso de print() en línea 632",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 635,
+        "severity": "low",
+        "description": "Uso de print() en línea 635",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 636,
+        "severity": "low",
+        "description": "Uso de print() en línea 636",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 637,
+        "severity": "low",
+        "description": "Uso de print() en línea 637",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 639,
+        "severity": "low",
+        "description": "Uso de print() en línea 639",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 642,
+        "severity": "low",
+        "description": "Uso de print() en línea 642",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 644,
+        "severity": "low",
+        "description": "Uso de print() en línea 644",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 659,
+        "severity": "low",
+        "description": "Uso de print() en línea 659",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 671,
+        "severity": "low",
+        "description": "Uso de print() en línea 671",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 676,
+        "severity": "low",
+        "description": "Uso de print() en línea 676",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 811,
+        "severity": "low",
+        "description": "Uso de print() en línea 811",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 812,
+        "severity": "low",
+        "description": "Uso de print() en línea 812",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 813,
+        "severity": "low",
+        "description": "Uso de print() en línea 813",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 814,
+        "severity": "low",
+        "description": "Uso de print() en línea 814",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 818,
+        "severity": "low",
+        "description": "Uso de print() en línea 818",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 820,
+        "severity": "low",
+        "description": "Uso de print() en línea 820",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 824,
+        "severity": "low",
+        "description": "Uso de print() en línea 824",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 826,
+        "severity": "low",
+        "description": "Uso de print() en línea 826",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 829,
+        "severity": "low",
+        "description": "Uso de print() en línea 829",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 834,
+        "severity": "low",
+        "description": "Uso de print() en línea 834",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 839,
+        "severity": "low",
+        "description": "Uso de print() en línea 839",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 844,
+        "severity": "low",
+        "description": "Uso de print() en línea 844",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 845,
+        "severity": "low",
+        "description": "Uso de print() en línea 845",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 847,
+        "severity": "low",
+        "description": "Uso de print() en línea 847",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 848,
+        "severity": "low",
+        "description": "Uso de print() en línea 848",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 849,
+        "severity": "low",
+        "description": "Uso de print() en línea 849",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 850,
+        "severity": "low",
+        "description": "Uso de print() en línea 850",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 854,
+        "severity": "low",
+        "description": "Uso de print() en línea 854",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 856,
+        "severity": "low",
+        "description": "Uso de print() en línea 856",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 857,
+        "severity": "low",
+        "description": "Uso de print() en línea 857",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 860,
+        "severity": "low",
+        "description": "Uso de print() en línea 860",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 861,
+        "severity": "low",
+        "description": "Uso de print() en línea 861",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 862,
+        "severity": "low",
+        "description": "Uso de print() en línea 862",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 863,
+        "severity": "low",
+        "description": "Uso de print() en línea 863",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 864,
+        "severity": "low",
+        "description": "Uso de print() en línea 864",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 867,
+        "severity": "low",
+        "description": "Uso de print() en línea 867",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 869,
+        "severity": "low",
+        "description": "Uso de print() en línea 869",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 873,
+        "severity": "low",
+        "description": "Uso de print() en línea 873",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 880,
+        "severity": "low",
+        "description": "Uso de print() en línea 880",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 897,
+        "severity": "low",
+        "description": "Uso de print() en línea 897",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 899,
+        "severity": "low",
+        "description": "Uso de print() en línea 899",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "auto_improve_framework.py",
+        "line": 900,
+        "severity": "low",
+        "description": "Uso de print() en línea 900",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "auto_improve_framework.py",
+        "line": 168,
+        "class": "CodeAnalyzer",
+        "severity": "low",
+        "description": "Clase CodeAnalyzer sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "auto_improve_framework.py",
+        "line": 175,
+        "function": "visit_FunctionDef",
+        "severity": "low",
+        "description": "Función pública visit_FunctionDef sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "auto_improve_framework.py",
+        "line": 202,
+        "function": "visit_ClassDef",
+        "severity": "low",
+        "description": "Función pública visit_ClassDef sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 9,
+        "severity": "low",
+        "description": "Uso de print() en línea 9",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 10,
+        "severity": "low",
+        "description": "Uso de print() en línea 10",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 17,
+        "severity": "low",
+        "description": "Uso de print() en línea 17",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 19,
+        "severity": "low",
+        "description": "Uso de print() en línea 19",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 20,
+        "severity": "low",
+        "description": "Uso de print() en línea 20",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 26,
+        "severity": "low",
+        "description": "Uso de print() en línea 26",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 27,
+        "severity": "low",
+        "description": "Uso de print() en línea 27",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 30,
+        "severity": "low",
+        "description": "Uso de print() en línea 30",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 33,
+        "severity": "low",
+        "description": "Uso de print() en línea 33",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 36,
+        "severity": "low",
+        "description": "Uso de print() en línea 36",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 42,
+        "severity": "low",
+        "description": "Uso de print() en línea 42",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 44,
+        "severity": "low",
+        "description": "Uso de print() en línea 44",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 48,
+        "severity": "low",
+        "description": "Uso de print() en línea 48",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 53,
+        "severity": "low",
+        "description": "Uso de print() en línea 53",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 63,
+        "severity": "low",
+        "description": "Uso de print() en línea 63",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 64,
+        "severity": "low",
+        "description": "Uso de print() en línea 64",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 69,
+        "severity": "low",
+        "description": "Uso de print() en línea 69",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 73,
+        "severity": "low",
+        "description": "Uso de print() en línea 73",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 75,
+        "severity": "low",
+        "description": "Uso de print() en línea 75",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 78,
+        "severity": "low",
+        "description": "Uso de print() en línea 78",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 81,
+        "severity": "low",
+        "description": "Uso de print() en línea 81",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 89,
+        "severity": "low",
+        "description": "Uso de print() en línea 89",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 92,
+        "severity": "low",
+        "description": "Uso de print() en línea 92",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 117,
+        "severity": "low",
+        "description": "Uso de print() en línea 117",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 122,
+        "severity": "low",
+        "description": "Uso de print() en línea 122",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 123,
+        "severity": "low",
+        "description": "Uso de print() en línea 123",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 124,
+        "severity": "low",
+        "description": "Uso de print() en línea 124",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 127,
+        "severity": "low",
+        "description": "Uso de print() en línea 127",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 128,
+        "severity": "low",
+        "description": "Uso de print() en línea 128",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 129,
+        "severity": "low",
+        "description": "Uso de print() en línea 129",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 134,
+        "severity": "low",
+        "description": "Uso de print() en línea 134",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 136,
+        "severity": "low",
+        "description": "Uso de print() en línea 136",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "test_auto_improvement.py",
+        "line": 140,
+        "severity": "low",
+        "description": "Uso de print() en línea 140",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 234,
+        "severity": "low",
+        "description": "Uso de print() en línea 234",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 388,
+        "severity": "low",
+        "description": "Uso de print() en línea 388",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 394,
+        "severity": "low",
+        "description": "Uso de print() en línea 394",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 399,
+        "severity": "low",
+        "description": "Uso de print() en línea 399",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 402,
+        "severity": "low",
+        "description": "Uso de print() en línea 402",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 404,
+        "severity": "low",
+        "description": "Uso de print() en línea 404",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 409,
+        "severity": "low",
+        "description": "Uso de print() en línea 409",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 416,
+        "severity": "low",
+        "description": "Uso de print() en línea 416",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 418,
+        "severity": "low",
+        "description": "Uso de print() en línea 418",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 423,
+        "severity": "low",
+        "description": "Uso de print() en línea 423",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 432,
+        "severity": "low",
+        "description": "Uso de print() en línea 432",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 435,
+        "severity": "low",
+        "description": "Uso de print() en línea 435",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 437,
+        "severity": "low",
+        "description": "Uso de print() en línea 437",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 476,
+        "severity": "low",
+        "description": "Uso de print() en línea 476",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 478,
+        "severity": "low",
+        "description": "Uso de print() en línea 478",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/framework_config_utils.py",
+        "line": 482,
+        "severity": "low",
+        "description": "Uso de print() en línea 482",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "systems/framework_config_utils.py",
+        "line": 67,
+        "class": "ConfigFormat",
+        "severity": "low",
+        "description": "Clase ConfigFormat sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "systems/framework_config_utils.py",
+        "line": 337,
+        "function": "record_agent_created",
+        "severity": "low",
+        "description": "Función pública record_agent_created sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "systems/framework_config_utils.py",
+        "line": 340,
+        "function": "record_agent_terminated",
+        "severity": "low",
+        "description": "Función pública record_agent_terminated sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "systems/framework_config_utils.py",
+        "line": 343,
+        "function": "record_message_sent",
+        "severity": "low",
+        "description": "Función pública record_message_sent sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "systems/framework_config_utils.py",
+        "line": 346,
+        "function": "record_resource_created",
+        "severity": "low",
+        "description": "Función pública record_resource_created sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "systems/framework_config_utils.py",
+        "line": 349,
+        "function": "record_error",
+        "severity": "low",
+        "description": "Función pública record_error sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1006,
+        "severity": "low",
+        "description": "Uso de print() en línea 1006",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1007,
+        "severity": "low",
+        "description": "Uso de print() en línea 1007",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1012,
+        "severity": "low",
+        "description": "Uso de print() en línea 1012",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1020,
+        "severity": "low",
+        "description": "Uso de print() en línea 1020",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1021,
+        "severity": "low",
+        "description": "Uso de print() en línea 1021",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1022,
+        "severity": "low",
+        "description": "Uso de print() en línea 1022",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1025,
+        "severity": "low",
+        "description": "Uso de print() en línea 1025",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1036,
+        "severity": "low",
+        "description": "Uso de print() en línea 1036",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1037,
+        "severity": "low",
+        "description": "Uso de print() en línea 1037",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1038,
+        "severity": "low",
+        "description": "Uso de print() en línea 1038",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1041,
+        "severity": "low",
+        "description": "Uso de print() en línea 1041",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1045,
+        "severity": "low",
+        "description": "Uso de print() en línea 1045",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1046,
+        "severity": "low",
+        "description": "Uso de print() en línea 1046",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1047,
+        "severity": "low",
+        "description": "Uso de print() en línea 1047",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1048,
+        "severity": "low",
+        "description": "Uso de print() en línea 1048",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1050,
+        "severity": "low",
+        "description": "Uso de print() en línea 1050",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1051,
+        "severity": "low",
+        "description": "Uso de print() en línea 1051",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1052,
+        "severity": "low",
+        "description": "Uso de print() en línea 1052",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1053,
+        "severity": "low",
+        "description": "Uso de print() en línea 1053",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1054,
+        "severity": "low",
+        "description": "Uso de print() en línea 1054",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/deployment_system.py",
+        "line": 1055,
+        "severity": "low",
+        "description": "Uso de print() en línea 1055",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "long_line",
+        "file": "systems/plugin_system.py",
+        "line": 419,
+        "severity": "low",
+        "description": "Línea muy larga (125 caracteres)",
+        "suggestion": "Dividir en múltiples líneas"
+      },
+      {
+        "type": "long_line",
+        "file": "systems/plugin_system.py",
+        "line": 423,
+        "severity": "low",
+        "description": "Línea muy larga (123 caracteres)",
+        "suggestion": "Dividir en múltiples líneas"
+      },
+      {
+        "type": "long_line",
+        "file": "systems/plugin_system.py",
+        "line": 499,
+        "severity": "low",
+        "description": "Línea muy larga (129 caracteres)",
+        "suggestion": "Dividir en múltiples líneas"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 690,
+        "severity": "low",
+        "description": "Uso de print() en línea 690",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 691,
+        "severity": "low",
+        "description": "Uso de print() en línea 691",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 692,
+        "severity": "low",
+        "description": "Uso de print() en línea 692",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 693,
+        "severity": "low",
+        "description": "Uso de print() en línea 693",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 703,
+        "severity": "low",
+        "description": "Uso de print() en línea 703",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 710,
+        "severity": "low",
+        "description": "Uso de print() en línea 710",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 718,
+        "severity": "low",
+        "description": "Uso de print() en línea 718",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 721,
+        "severity": "low",
+        "description": "Uso de print() en línea 721",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "systems/plugin_system.py",
+        "line": 740,
+        "severity": "low",
+        "description": "Uso de print() en línea 740",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "syntax_error",
+        "file": "systems/plugin_system.py",
+        "severity": "high",
+        "description": "Error de sintaxis en plugin_system.py"
+      },
+      {
+        "type": "long_line",
+        "file": "interfaces/rest_api.py",
+        "line": 16,
+        "severity": "low",
+        "description": "Línea muy larga (124 caracteres)",
+        "suggestion": "Dividir en múltiples líneas"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 880,
+        "severity": "low",
+        "description": "Uso de print() en línea 880",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 881,
+        "severity": "low",
+        "description": "Uso de print() en línea 881",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 894,
+        "severity": "low",
+        "description": "Uso de print() en línea 894",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 895,
+        "severity": "low",
+        "description": "Uso de print() en línea 895",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 912,
+        "severity": "low",
+        "description": "Uso de print() en línea 912",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 913,
+        "severity": "low",
+        "description": "Uso de print() en línea 913",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 914,
+        "severity": "low",
+        "description": "Uso de print() en línea 914",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 915,
+        "severity": "low",
+        "description": "Uso de print() en línea 915",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 916,
+        "severity": "low",
+        "description": "Uso de print() en línea 916",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 917,
+        "severity": "low",
+        "description": "Uso de print() en línea 917",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 918,
+        "severity": "low",
+        "description": "Uso de print() en línea 918",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 919,
+        "severity": "low",
+        "description": "Uso de print() en línea 919",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 920,
+        "severity": "low",
+        "description": "Uso de print() en línea 920",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 921,
+        "severity": "low",
+        "description": "Uso de print() en línea 921",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 928,
+        "severity": "low",
+        "description": "Uso de print() en línea 928",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/rest_api.py",
+        "line": 933,
+        "severity": "low",
+        "description": "Uso de print() en línea 933",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "interfaces/rest_api.py",
+        "line": 30,
+        "function": "success",
+        "severity": "low",
+        "description": "Función pública success sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "interfaces/rest_api.py",
+        "line": 39,
+        "function": "error",
+        "severity": "low",
+        "description": "Función pública error sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "interfaces/rest_api.py",
+        "line": 51,
+        "function": "paginated",
+        "severity": "low",
+        "description": "Función pública paginated sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 772,
+        "severity": "low",
+        "description": "Uso de print() en línea 772",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 828,
+        "severity": "low",
+        "description": "Uso de print() en línea 828",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 829,
+        "severity": "low",
+        "description": "Uso de print() en línea 829",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 830,
+        "severity": "low",
+        "description": "Uso de print() en línea 830",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 831,
+        "severity": "low",
+        "description": "Uso de print() en línea 831",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 832,
+        "severity": "low",
+        "description": "Uso de print() en línea 832",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 833,
+        "severity": "low",
+        "description": "Uso de print() en línea 833",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 834,
+        "severity": "low",
+        "description": "Uso de print() en línea 834",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 835,
+        "severity": "low",
+        "description": "Uso de print() en línea 835",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 836,
+        "severity": "low",
+        "description": "Uso de print() en línea 836",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 837,
+        "severity": "low",
+        "description": "Uso de print() en línea 837",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 838,
+        "severity": "low",
+        "description": "Uso de print() en línea 838",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 839,
+        "severity": "low",
+        "description": "Uso de print() en línea 839",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 873,
+        "severity": "low",
+        "description": "Uso de print() en línea 873",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/web_dashboard.py",
+        "line": 878,
+        "severity": "low",
+        "description": "Uso de print() en línea 878",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 146,
+        "severity": "low",
+        "description": "Uso de print() en línea 146",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 150,
+        "severity": "low",
+        "description": "Uso de print() en línea 150",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 154,
+        "severity": "low",
+        "description": "Uso de print() en línea 154",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 158,
+        "severity": "low",
+        "description": "Uso de print() en línea 158",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 230,
+        "severity": "low",
+        "description": "Uso de print() en línea 230",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 364,
+        "severity": "low",
+        "description": "Uso de print() en línea 364",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 395,
+        "severity": "low",
+        "description": "Uso de print() en línea 395",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 411,
+        "severity": "low",
+        "description": "Uso de print() en línea 411",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 429,
+        "severity": "low",
+        "description": "Uso de print() en línea 429",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 494,
+        "severity": "low",
+        "description": "Uso de print() en línea 494",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 555,
+        "severity": "low",
+        "description": "Uso de print() en línea 555",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 567,
+        "severity": "low",
+        "description": "Uso de print() en línea 567",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 645,
+        "severity": "low",
+        "description": "Uso de print() en línea 645",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 687,
+        "severity": "low",
+        "description": "Uso de print() en línea 687",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 706,
+        "severity": "low",
+        "description": "Uso de print() en línea 706",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 720,
+        "severity": "low",
+        "description": "Uso de print() en línea 720",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 721,
+        "severity": "low",
+        "description": "Uso de print() en línea 721",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "interfaces/framework_cli.py",
+        "line": 722,
+        "severity": "low",
+        "description": "Uso de print() en línea 722",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "long_line",
+        "file": "core/monitoring_system.py",
+        "line": 512,
+        "severity": "low",
+        "description": "Línea muy larga (121 caracteres)",
+        "suggestion": "Dividir en múltiples líneas"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 991,
+        "severity": "low",
+        "description": "Uso de print() en línea 991",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 992,
+        "severity": "low",
+        "description": "Uso de print() en línea 992",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1015,
+        "severity": "low",
+        "description": "Uso de print() en línea 1015",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1022,
+        "severity": "low",
+        "description": "Uso de print() en línea 1022",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1023,
+        "severity": "low",
+        "description": "Uso de print() en línea 1023",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1024,
+        "severity": "low",
+        "description": "Uso de print() en línea 1024",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1025,
+        "severity": "low",
+        "description": "Uso de print() en línea 1025",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1028,
+        "severity": "low",
+        "description": "Uso de print() en línea 1028",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1029,
+        "severity": "low",
+        "description": "Uso de print() en línea 1029",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1038,
+        "severity": "low",
+        "description": "Uso de print() en línea 1038",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1039,
+        "severity": "low",
+        "description": "Uso de print() en línea 1039",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1044,
+        "severity": "low",
+        "description": "Uso de print() en línea 1044",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1047,
+        "severity": "low",
+        "description": "Uso de print() en línea 1047",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1050,
+        "severity": "low",
+        "description": "Uso de print() en línea 1050",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1054,
+        "severity": "low",
+        "description": "Uso de print() en línea 1054",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1059,
+        "severity": "low",
+        "description": "Uso de print() en línea 1059",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1063,
+        "severity": "low",
+        "description": "Uso de print() en línea 1063",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1065,
+        "severity": "low",
+        "description": "Uso de print() en línea 1065",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/monitoring_system.py",
+        "line": 1071,
+        "severity": "low",
+        "description": "Uso de print() en línea 1071",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "core/monitoring_system.py",
+        "line": 1012,
+        "class": "ConsoleNotificationHandler",
+        "severity": "low",
+        "description": "Clase ConsoleNotificationHandler sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 874,
+        "severity": "low",
+        "description": "Uso de print() en línea 874",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 876,
+        "severity": "low",
+        "description": "Uso de print() en línea 876",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 885,
+        "severity": "low",
+        "description": "Uso de print() en línea 885",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 889,
+        "severity": "low",
+        "description": "Uso de print() en línea 889",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 891,
+        "severity": "low",
+        "description": "Uso de print() en línea 891",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 911,
+        "severity": "low",
+        "description": "Uso de print() en línea 911",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 915,
+        "severity": "low",
+        "description": "Uso de print() en línea 915",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 918,
+        "severity": "low",
+        "description": "Uso de print() en línea 918",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 923,
+        "severity": "low",
+        "description": "Uso de print() en línea 923",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 930,
+        "severity": "low",
+        "description": "Uso de print() en línea 930",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 933,
+        "severity": "low",
+        "description": "Uso de print() en línea 933",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "long_line",
+        "file": "core/persistence_system.py",
+        "line": 934,
+        "severity": "low",
+        "description": "Línea muy larga (123 caracteres)",
+        "suggestion": "Dividir en múltiples líneas"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 935,
+        "severity": "low",
+        "description": "Uso de print() en línea 935",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/persistence_system.py",
+        "line": 940,
+        "severity": "low",
+        "description": "Uso de print() en línea 940",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1015,
+        "severity": "low",
+        "description": "Uso de print() en línea 1015",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1016,
+        "severity": "low",
+        "description": "Uso de print() en línea 1016",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1046,
+        "severity": "low",
+        "description": "Uso de print() en línea 1046",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1054,
+        "severity": "low",
+        "description": "Uso de print() en línea 1054",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1055,
+        "severity": "low",
+        "description": "Uso de print() en línea 1055",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1056,
+        "severity": "low",
+        "description": "Uso de print() en línea 1056",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1059,
+        "severity": "low",
+        "description": "Uso de print() en línea 1059",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1063,
+        "severity": "low",
+        "description": "Uso de print() en línea 1063",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1064,
+        "severity": "low",
+        "description": "Uso de print() en línea 1064",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1065,
+        "severity": "low",
+        "description": "Uso de print() en línea 1065",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1067,
+        "severity": "low",
+        "description": "Uso de print() en línea 1067",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1070,
+        "severity": "low",
+        "description": "Uso de print() en línea 1070",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1072,
+        "severity": "low",
+        "description": "Uso de print() en línea 1072",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1075,
+        "severity": "low",
+        "description": "Uso de print() en línea 1075",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1091,
+        "severity": "low",
+        "description": "Uso de print() en línea 1091",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1092,
+        "severity": "low",
+        "description": "Uso de print() en línea 1092",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1095,
+        "severity": "low",
+        "description": "Uso de print() en línea 1095",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1101,
+        "severity": "low",
+        "description": "Uso de print() en línea 1101",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1102,
+        "severity": "low",
+        "description": "Uso de print() en línea 1102",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1105,
+        "severity": "low",
+        "description": "Uso de print() en línea 1105",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1108,
+        "severity": "low",
+        "description": "Uso de print() en línea 1108",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1113,
+        "severity": "low",
+        "description": "Uso de print() en línea 1113",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1114,
+        "severity": "low",
+        "description": "Uso de print() en línea 1114",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1116,
+        "severity": "low",
+        "description": "Uso de print() en línea 1116",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1119,
+        "severity": "low",
+        "description": "Uso de print() en línea 1119",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1123,
+        "severity": "low",
+        "description": "Uso de print() en línea 1123",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1126,
+        "severity": "low",
+        "description": "Uso de print() en línea 1126",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1130,
+        "severity": "low",
+        "description": "Uso de print() en línea 1130",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1131,
+        "severity": "low",
+        "description": "Uso de print() en línea 1131",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1132,
+        "severity": "low",
+        "description": "Uso de print() en línea 1132",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/backup_recovery_system.py",
+        "line": 1138,
+        "severity": "low",
+        "description": "Uso de print() en línea 1138",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 738,
+        "severity": "low",
+        "description": "Uso de print() en línea 738",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 739,
+        "severity": "low",
+        "description": "Uso de print() en línea 739",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 752,
+        "severity": "low",
+        "description": "Uso de print() en línea 752",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 762,
+        "severity": "low",
+        "description": "Uso de print() en línea 762",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 763,
+        "severity": "low",
+        "description": "Uso de print() en línea 763",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 764,
+        "severity": "low",
+        "description": "Uso de print() en línea 764",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 765,
+        "severity": "low",
+        "description": "Uso de print() en línea 765",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 768,
+        "severity": "low",
+        "description": "Uso de print() en línea 768",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 782,
+        "severity": "low",
+        "description": "Uso de print() en línea 782",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 785,
+        "severity": "low",
+        "description": "Uso de print() en línea 785",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 791,
+        "severity": "low",
+        "description": "Uso de print() en línea 791",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 800,
+        "severity": "low",
+        "description": "Uso de print() en línea 800",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 803,
+        "severity": "low",
+        "description": "Uso de print() en línea 803",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 820,
+        "severity": "low",
+        "description": "Uso de print() en línea 820",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 824,
+        "severity": "low",
+        "description": "Uso de print() en línea 824",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 827,
+        "severity": "low",
+        "description": "Uso de print() en línea 827",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 832,
+        "severity": "low",
+        "description": "Uso de print() en línea 832",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 836,
+        "severity": "low",
+        "description": "Uso de print() en línea 836",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 839,
+        "severity": "low",
+        "description": "Uso de print() en línea 839",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 843,
+        "severity": "low",
+        "description": "Uso de print() en línea 843",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 848,
+        "severity": "low",
+        "description": "Uso de print() en línea 848",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/security_system.py",
+        "line": 850,
+        "severity": "low",
+        "description": "Uso de print() en línea 850",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "core/security_system.py",
+        "line": 710,
+        "function": "decorator",
+        "severity": "low",
+        "description": "Función pública decorator sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "core/security_system.py",
+        "line": 806,
+        "class": "MockAgent",
+        "severity": "low",
+        "description": "Clase MockAgent sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 715,
+        "severity": "low",
+        "description": "Uso de print() en línea 715",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 728,
+        "severity": "low",
+        "description": "Uso de print() en línea 728",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 732,
+        "severity": "low",
+        "description": "Uso de print() en línea 732",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 734,
+        "severity": "low",
+        "description": "Uso de print() en línea 734",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 657,
+        "function": "create_planning_agent",
+        "severity": "low",
+        "description": "Función pública create_planning_agent sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "missing_docstring",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 661,
+        "function": "create_build_agent",
+        "severity": "low",
+        "description": "Función pública create_build_agent sin docstring",
+        "suggestion": "Añadir docstring explicando propósito y parámetros"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 764,
+        "severity": "low",
+        "description": "Uso de print() en línea 764",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 766,
+        "severity": "low",
+        "description": "Uso de print() en línea 766",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 780,
+        "severity": "low",
+        "description": "Uso de print() en línea 780",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 793,
+        "severity": "low",
+        "description": "Uso de print() en línea 793",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 807,
+        "severity": "low",
+        "description": "Uso de print() en línea 807",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 815,
+        "severity": "low",
+        "description": "Uso de print() en línea 815",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 823,
+        "severity": "low",
+        "description": "Uso de print() en línea 823",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "core/specialized_agents.py",
+        "line": 825,
+        "severity": "low",
+        "description": "Uso de print() en línea 825",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 48,
+        "severity": "low",
+        "description": "Uso de print() en línea 48",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 49,
+        "severity": "low",
+        "description": "Uso de print() en línea 49",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 50,
+        "severity": "low",
+        "description": "Uso de print() en línea 50",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 51,
+        "severity": "low",
+        "description": "Uso de print() en línea 51",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 85,
+        "severity": "low",
+        "description": "Uso de print() en línea 85",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 92,
+        "severity": "low",
+        "description": "Uso de print() en línea 92",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 93,
+        "severity": "low",
+        "description": "Uso de print() en línea 93",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 106,
+        "severity": "low",
+        "description": "Uso de print() en línea 106",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 109,
+        "severity": "low",
+        "description": "Uso de print() en línea 109",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 112,
+        "severity": "low",
+        "description": "Uso de print() en línea 112",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 119,
+        "severity": "low",
+        "description": "Uso de print() en línea 119",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 122,
+        "severity": "low",
+        "description": "Uso de print() en línea 122",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 129,
+        "severity": "low",
+        "description": "Uso de print() en línea 129",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 132,
+        "severity": "low",
+        "description": "Uso de print() en línea 132",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 135,
+        "severity": "low",
+        "description": "Uso de print() en línea 135",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 138,
+        "severity": "low",
+        "description": "Uso de print() en línea 138",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 140,
+        "severity": "low",
+        "description": "Uso de print() en línea 140",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 142,
+        "severity": "low",
+        "description": "Uso de print() en línea 142",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 146,
+        "severity": "low",
+        "description": "Uso de print() en línea 146",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 147,
+        "severity": "low",
+        "description": "Uso de print() en línea 147",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 150,
+        "severity": "low",
+        "description": "Uso de print() en línea 150",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 164,
+        "severity": "low",
+        "description": "Uso de print() en línea 164",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 167,
+        "severity": "low",
+        "description": "Uso de print() en línea 167",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 174,
+        "severity": "low",
+        "description": "Uso de print() en línea 174",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 179,
+        "severity": "low",
+        "description": "Uso de print() en línea 179",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 182,
+        "severity": "low",
+        "description": "Uso de print() en línea 182",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 184,
+        "severity": "low",
+        "description": "Uso de print() en línea 184",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 188,
+        "severity": "low",
+        "description": "Uso de print() en línea 188",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 189,
+        "severity": "low",
+        "description": "Uso de print() en línea 189",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 192,
+        "severity": "low",
+        "description": "Uso de print() en línea 192",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 201,
+        "severity": "low",
+        "description": "Uso de print() en línea 201",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 210,
+        "severity": "low",
+        "description": "Uso de print() en línea 210",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 219,
+        "severity": "low",
+        "description": "Uso de print() en línea 219",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 228,
+        "severity": "low",
+        "description": "Uso de print() en línea 228",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 237,
+        "severity": "low",
+        "description": "Uso de print() en línea 237",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 246,
+        "severity": "low",
+        "description": "Uso de print() en línea 246",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 249,
+        "severity": "low",
+        "description": "Uso de print() en línea 249",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 253,
+        "severity": "low",
+        "description": "Uso de print() en línea 253",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 254,
+        "severity": "low",
+        "description": "Uso de print() en línea 254",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 255,
+        "severity": "low",
+        "description": "Uso de print() en línea 255",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 257,
+        "severity": "low",
+        "description": "Uso de print() en línea 257",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 261,
+        "severity": "low",
+        "description": "Uso de print() en línea 261",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 262,
+        "severity": "low",
+        "description": "Uso de print() en línea 262",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 265,
+        "severity": "low",
+        "description": "Uso de print() en línea 265",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 283,
+        "severity": "low",
+        "description": "Uso de print() en línea 283",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 301,
+        "severity": "low",
+        "description": "Uso de print() en línea 301",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 347,
+        "severity": "low",
+        "description": "Uso de print() en línea 347",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 393,
+        "severity": "low",
+        "description": "Uso de print() en línea 393",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 404,
+        "severity": "low",
+        "description": "Uso de print() en línea 404",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 415,
+        "severity": "low",
+        "description": "Uso de print() en línea 415",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 433,
+        "severity": "low",
+        "description": "Uso de print() en línea 433",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 456,
+        "severity": "low",
+        "description": "Uso de print() en línea 456",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 458,
+        "severity": "low",
+        "description": "Uso de print() en línea 458",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 462,
+        "severity": "low",
+        "description": "Uso de print() en línea 462",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 463,
+        "severity": "low",
+        "description": "Uso de print() en línea 463",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 466,
+        "severity": "low",
+        "description": "Uso de print() en línea 466",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 480,
+        "severity": "low",
+        "description": "Uso de print() en línea 480",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 483,
+        "severity": "low",
+        "description": "Uso de print() en línea 483",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 502,
+        "severity": "low",
+        "description": "Uso de print() en línea 502",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 506,
+        "severity": "low",
+        "description": "Uso de print() en línea 506",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 510,
+        "severity": "low",
+        "description": "Uso de print() en línea 510",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 516,
+        "severity": "low",
+        "description": "Uso de print() en línea 516",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 518,
+        "severity": "low",
+        "description": "Uso de print() en línea 518",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 522,
+        "severity": "low",
+        "description": "Uso de print() en línea 522",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 523,
+        "severity": "low",
+        "description": "Uso de print() en línea 523",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 526,
+        "severity": "low",
+        "description": "Uso de print() en línea 526",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 532,
+        "severity": "low",
+        "description": "Uso de print() en línea 532",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 533,
+        "severity": "low",
+        "description": "Uso de print() en línea 533",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 534,
+        "severity": "low",
+        "description": "Uso de print() en línea 534",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 536,
+        "severity": "low",
+        "description": "Uso de print() en línea 536",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 539,
+        "severity": "low",
+        "description": "Uso de print() en línea 539",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 553,
+        "severity": "low",
+        "description": "Uso de print() en línea 553",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 560,
+        "severity": "low",
+        "description": "Uso de print() en línea 560",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 561,
+        "severity": "low",
+        "description": "Uso de print() en línea 561",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 564,
+        "severity": "low",
+        "description": "Uso de print() en línea 564",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 574,
+        "severity": "low",
+        "description": "Uso de print() en línea 574",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 577,
+        "severity": "low",
+        "description": "Uso de print() en línea 577",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 580,
+        "severity": "low",
+        "description": "Uso de print() en línea 580",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 582,
+        "severity": "low",
+        "description": "Uso de print() en línea 582",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 586,
+        "severity": "low",
+        "description": "Uso de print() en línea 586",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 587,
+        "severity": "low",
+        "description": "Uso de print() en línea 587",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 590,
+        "severity": "low",
+        "description": "Uso de print() en línea 590",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 595,
+        "severity": "low",
+        "description": "Uso de print() en línea 595",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 598,
+        "severity": "low",
+        "description": "Uso de print() en línea 598",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 603,
+        "severity": "low",
+        "description": "Uso de print() en línea 603",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 606,
+        "severity": "low",
+        "description": "Uso de print() en línea 606",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 614,
+        "severity": "low",
+        "description": "Uso de print() en línea 614",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 619,
+        "severity": "low",
+        "description": "Uso de print() en línea 619",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 626,
+        "severity": "low",
+        "description": "Uso de print() en línea 626",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 629,
+        "severity": "low",
+        "description": "Uso de print() en línea 629",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 632,
+        "severity": "low",
+        "description": "Uso de print() en línea 632",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 633,
+        "severity": "low",
+        "description": "Uso de print() en línea 633",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 635,
+        "severity": "low",
+        "description": "Uso de print() en línea 635",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 639,
+        "severity": "low",
+        "description": "Uso de print() en línea 639",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 640,
+        "severity": "low",
+        "description": "Uso de print() en línea 640",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 643,
+        "severity": "low",
+        "description": "Uso de print() en línea 643",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 648,
+        "severity": "low",
+        "description": "Uso de print() en línea 648",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 658,
+        "severity": "low",
+        "description": "Uso de print() en línea 658",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 661,
+        "severity": "low",
+        "description": "Uso de print() en línea 661",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 669,
+        "severity": "low",
+        "description": "Uso de print() en línea 669",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 672,
+        "severity": "low",
+        "description": "Uso de print() en línea 672",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 683,
+        "severity": "low",
+        "description": "Uso de print() en línea 683",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 687,
+        "severity": "low",
+        "description": "Uso de print() en línea 687",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 689,
+        "severity": "low",
+        "description": "Uso de print() en línea 689",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 693,
+        "severity": "low",
+        "description": "Uso de print() en línea 693",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 694,
+        "severity": "low",
+        "description": "Uso de print() en línea 694",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 697,
+        "severity": "low",
+        "description": "Uso de print() en línea 697",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 709,
+        "severity": "low",
+        "description": "Uso de print() en línea 709",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 721,
+        "severity": "low",
+        "description": "Uso de print() en línea 721",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 724,
+        "severity": "low",
+        "description": "Uso de print() en línea 724",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 737,
+        "severity": "low",
+        "description": "Uso de print() en línea 737",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 741,
+        "severity": "low",
+        "description": "Uso de print() en línea 741",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 746,
+        "severity": "low",
+        "description": "Uso de print() en línea 746",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 748,
+        "severity": "low",
+        "description": "Uso de print() en línea 748",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 752,
+        "severity": "low",
+        "description": "Uso de print() en línea 752",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 753,
+        "severity": "low",
+        "description": "Uso de print() en línea 753",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 756,
+        "severity": "low",
+        "description": "Uso de print() en línea 756",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 775,
+        "severity": "low",
+        "description": "Uso de print() en línea 775",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 776,
+        "severity": "low",
+        "description": "Uso de print() en línea 776",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 777,
+        "severity": "low",
+        "description": "Uso de print() en línea 777",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 779,
+        "severity": "low",
+        "description": "Uso de print() en línea 779",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 780,
+        "severity": "low",
+        "description": "Uso de print() en línea 780",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 781,
+        "severity": "low",
+        "description": "Uso de print() en línea 781",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 782,
+        "severity": "low",
+        "description": "Uso de print() en línea 782",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 783,
+        "severity": "low",
+        "description": "Uso de print() en línea 783",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 784,
+        "severity": "low",
+        "description": "Uso de print() en línea 784",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 786,
+        "severity": "low",
+        "description": "Uso de print() en línea 786",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 787,
+        "severity": "low",
+        "description": "Uso de print() en línea 787",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 788,
+        "severity": "low",
+        "description": "Uso de print() en línea 788",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 789,
+        "severity": "low",
+        "description": "Uso de print() en línea 789",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 790,
+        "severity": "low",
+        "description": "Uso de print() en línea 790",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 792,
+        "severity": "low",
+        "description": "Uso de print() en línea 792",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 793,
+        "severity": "low",
+        "description": "Uso de print() en línea 793",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 794,
+        "severity": "low",
+        "description": "Uso de print() en línea 794",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 795,
+        "severity": "low",
+        "description": "Uso de print() en línea 795",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 797,
+        "severity": "low",
+        "description": "Uso de print() en línea 797",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 798,
+        "severity": "low",
+        "description": "Uso de print() en línea 798",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 799,
+        "severity": "low",
+        "description": "Uso de print() en línea 799",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 800,
+        "severity": "low",
+        "description": "Uso de print() en línea 800",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 802,
+        "severity": "low",
+        "description": "Uso de print() en línea 802",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 803,
+        "severity": "low",
+        "description": "Uso de print() en línea 803",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 804,
+        "severity": "low",
+        "description": "Uso de print() en línea 804",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 805,
+        "severity": "low",
+        "description": "Uso de print() en línea 805",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 807,
+        "severity": "low",
+        "description": "Uso de print() en línea 807",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 808,
+        "severity": "low",
+        "description": "Uso de print() en línea 808",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 809,
+        "severity": "low",
+        "description": "Uso de print() en línea 809",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 810,
+        "severity": "low",
+        "description": "Uso de print() en línea 810",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 811,
+        "severity": "low",
+        "description": "Uso de print() en línea 811",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 812,
+        "severity": "low",
+        "description": "Uso de print() en línea 812",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 814,
+        "severity": "low",
+        "description": "Uso de print() en línea 814",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 815,
+        "severity": "low",
+        "description": "Uso de print() en línea 815",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 816,
+        "severity": "low",
+        "description": "Uso de print() en línea 816",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 820,
+        "severity": "low",
+        "description": "Uso de print() en línea 820",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 835,
+        "severity": "low",
+        "description": "Uso de print() en línea 835",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 838,
+        "severity": "low",
+        "description": "Uso de print() en línea 838",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 852,
+        "severity": "low",
+        "description": "Uso de print() en línea 852",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 853,
+        "severity": "low",
+        "description": "Uso de print() en línea 853",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 854,
+        "severity": "low",
+        "description": "Uso de print() en línea 854",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 855,
+        "severity": "low",
+        "description": "Uso de print() en línea 855",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 861,
+        "severity": "low",
+        "description": "Uso de print() en línea 861",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 863,
+        "severity": "low",
+        "description": "Uso de print() en línea 863",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "print_usage",
+        "file": "examples/end_to_end_example.py",
+        "line": 868,
+        "severity": "low",
+        "description": "Uso de print() en línea 868",
+        "suggestion": "Usar logging en lugar de print()"
+      },
+      {
+        "type": "missing_class_docstring",
+        "file": "examples/end_to_end_example.py",
+        "line": 177,
+        "class": "SecurityAlertHandler",
+        "severity": "low",
+        "description": "Clase SecurityAlertHandler sin docstring",
+        "suggestion": "Añadir docstring explicando propósito de la clase"
+      }
+    ],
+    "suggestions": [
+      {
+        "type": "todo_found",
+        "file": "framework_auto_improvement.py",
+        "line": 437,
+        "description": "TODO/FIXME encontrado: # Ejecutar todos los análisis",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "framework_auto_improvement.py",
+        "line": 498,
+        "description": "TODO/FIXME encontrado: max_penalty = len(issues) * 3  # Máximo peso si todos fueran high",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "framework_auto_improvement.py",
+        "line": 974,
+        "description": "TODO/FIXME encontrado: \"\"\"Refactoring para extraer métodos\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "framework_auto_improvement.py",
+        "line": 987,
+        "description": "TODO/FIXME encontrado: refactored_lines.append(\"        # TODO: Consider extracting complex logic into separate methods\")",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 133,
+        "description": "TODO/FIXME encontrado: # 2. Buscar TODO/FIXME",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 134,
+        "description": "TODO/FIXME encontrado: if any(keyword in stripped.upper() for keyword in ['TODO', 'FIXME', 'HACK']):",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 136,
+        "description": "TODO/FIXME encontrado: \"type\": \"todo_found\",",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 139,
+        "description": "TODO/FIXME encontrado: \"description\": f\"TODO/FIXME encontrado: {stripped}\",",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 223,
+        "description": "TODO/FIXME encontrado: \"description\": f\"Clase {node.name} tiene muchos métodos ({len(methods)})\",",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 485,
+        "description": "TODO/FIXME encontrado: Esta clase proporciona la funcionalidad básica que todos los agentes",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "auto_improve_framework.py",
+        "line": 508,
+        "description": "TODO/FIXME encontrado: # 1. EXTRAER MÉTODOS",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "test_auto_improvement.py",
+        "line": 20,
+        "description": "TODO/FIXME encontrado: print(\"💡 Asegúrate de que todos los archivos del framework existan\")",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "systems/deployment_system.py",
+        "line": 994,
+        "description": "TODO/FIXME encontrado: \"\"\"Listar todos los deployments\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "systems/plugin_system.py",
+        "line": 86,
+        "description": "TODO/FIXME encontrado: \"\"\"Cargar todos los plugins disponibles\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "systems/plugin_system.py",
+        "line": 188,
+        "description": "TODO/FIXME encontrado: \"\"\"Cerrar todos los plugins\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "systems/plugin_system.py",
+        "line": 495,
+        "description": "TODO/FIXME encontrado: # TODO: Implement functionality",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "interfaces/rest_api.py",
+        "line": 239,
+        "description": "TODO/FIXME encontrado: \"\"\"Listar todos los agentes\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "interfaces/rest_api.py",
+        "line": 518,
+        "description": "TODO/FIXME encontrado: # Obtener todos los recursos",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "interfaces/web_dashboard.py",
+        "line": 94,
+        "description": "TODO/FIXME encontrado: \"\"\"Obtener lista de todos los agentes\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "interfaces/web_dashboard.py",
+        "line": 310,
+        "description": "TODO/FIXME encontrado: \"\"\"Enviar actualización a todos los WebSockets conectados\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/monitoring_system.py",
+        "line": 786,
+        "description": "TODO/FIXME encontrado: \"\"\"Ejecutar todos los health checks\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/persistence_system.py",
+        "line": 465,
+        "description": "TODO/FIXME encontrado: \"\"\"Cargar todos los datos desde archivos\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/persistence_system.py",
+        "line": 665,
+        "description": "TODO/FIXME encontrado: \"\"\"Cerrar y guardar todos los datos\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/persistence_system.py",
+        "line": 784,
+        "description": "TODO/FIXME encontrado: # Guardar estado de todos los agentes",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/persistence_system.py",
+        "line": 789,
+        "description": "TODO/FIXME encontrado: # Guardar todos los recursos",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/persistence_system.py",
+        "line": 937,
+        "description": "TODO/FIXME encontrado: # Cerrar todo",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/backup_recovery_system.py",
+        "line": 323,
+        "description": "TODO/FIXME encontrado: \"\"\"Recopilar todos los datos del framework\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/backup_recovery_system.py",
+        "line": 716,
+        "description": "TODO/FIXME encontrado: \"\"\"Detener todos los agentes\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/security_system.py",
+        "line": 45,
+        "description": "TODO/FIXME encontrado: \"\"\"Métodos de autenticación\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 158,
+        "description": "TODO/FIXME encontrado: \"\"\"Listar todos los agentes\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 282,
+        "description": "TODO/FIXME encontrado: \"\"\"Clase base para todos los agentes\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 610,
+        "description": "TODO/FIXME encontrado: # Detener todos los agentes",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 677,
+        "description": "TODO/FIXME encontrado: # Iniciar todos los agentes",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/autonomous_agent_framework.py",
+        "line": 730,
+        "description": "TODO/FIXME encontrado: # Listar todos los agentes",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 242,
+        "description": "TODO/FIXME encontrado: # TODO: Implement {method_name}",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 272,
+        "description": "TODO/FIXME encontrado: // TODO: Implement {method_name}",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 461,
+        "description": "TODO/FIXME encontrado: # Análisis simple del código para extraer clases y métodos",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 487,
+        "description": "TODO/FIXME encontrado: # TODO: Implement test for {method}",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 522,
+        "description": "TODO/FIXME encontrado: // TODO: Implement test for {method}",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 542,
+        "description": "TODO/FIXME encontrado: \"\"\"Extraer nombres de métodos del código\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "core/specialized_agents.py",
+        "line": 697,
+        "description": "TODO/FIXME encontrado: \"\"\"Factory extendido para crear todos los tipos de agentes\"\"\"",
+        "priority": "medium"
+      },
+      {
+        "type": "todo_found",
+        "file": "examples/end_to_end_example.py",
+        "line": 11,
+        "description": "TODO/FIXME encontrado: # Imports de todos los componentes del framework",
+        "priority": "medium"
+      }
+    ],
+    "stats": {
+      "quality_score": 0,
+      "total_issues": 518,
+      "severity_counts": {
+        "high": 1,
+        "medium": 0,
+        "low": 517
+      },
+      "type_counts": {
+        "print_usage": 481,
+        "missing_class_docstring": 8,
+        "missing_docstring": 22,
+        "long_line": 6,
+        "syntax_error": 1
+      },
+      "avg_issues_per_file": 32.375
+    }
+  },
+  "improvements": [
+    {
+      "type": "logging_system",
+      "title": "Implementar Sistema de Logging",
+      "description": "Reemplazar 481 usos de print() con logging",
+      "priority_score": 962,
+      "files_affected": [
+        "core/specialized_agents.py",
+        "systems/framework_config_utils.py",
+        "auto_improve_framework.py",
+        "interfaces/framework_cli.py",
+        "core/security_system.py",
+        "systems/deployment_system.py",
+        "systems/plugin_system.py",
+        "interfaces/rest_api.py",
+        "examples/end_to_end_example.py",
+        "core/persistence_system.py",
+        "core/backup_recovery_system.py",
+        "core/autonomous_agent_framework.py",
+        "framework_auto_improvement.py",
+        "core/monitoring_system.py",
+        "interfaces/web_dashboard.py",
+        "test_auto_improvement.py"
+      ],
+      "implementation": "\n# 1. Crear archivo: framework_logger.py\nimport logging\nimport sys\nfrom datetime import datetime\n\ndef setup_framework_logging(level=logging.INFO, log_file=None):\n    \"\"\"Configurar logging para el framework\"\"\"\n    \n    # Formato de logs\n    formatter = logging.Formatter(\n        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'\n    )\n    \n    # Handler para consola\n    console_handler = logging.StreamHandler(sys.stdout)\n    console_handler.setFormatter(formatter)\n    \n    # Handler para archivo (opcional)\n    handlers = [console_handler]\n    if log_file:\n        file_handler = logging.FileHandler(log_file)\n        file_handler.setFormatter(formatter)\n        handlers.append(file_handler)\n    \n    # Configurar logger raíz\n    logging.basicConfig(\n        level=level,\n        handlers=handlers\n    )\n    \n    return logging.getLogger('framework')\n\n# 2. Reemplazar print() por logging:\n# ANTES:\nprint(\"Agent started\")\n\n# DESPUÉS:\nlogger = logging.getLogger('framework')\nlogger.info(\"Agent started\")\n\n# 3. Diferentes niveles:\nlogger.debug(\"Información detallada para debugging\")\nlogger.info(\"Información general del funcionamiento\")\nlogger.warning(\"Algo inesperado pero no crítico\")\nlogger.error(\"Error que impide operación\")\nlogger.critical(\"Error crítico del sistema\")\n        ",
+      "benefits": [
+        "Control de niveles de log (DEBUG, INFO, WARNING, ERROR)",
+        "Posibilidad de enviar logs a archivos",
+        "Mejor debugging en producción",
+        "Logs estructurados y timestamps automáticos"
+      ]
+    },
+    {
+      "type": "quality_boost",
+      "title": "Mejoras Generales de Calidad",
+      "description": "Elevar score de calidad de 0.0 a 85+",
+      "priority_score": 80,
+      "implementation": "\n# Mejoras generales de calidad del código:\n\n# 1. AÑADIR TYPE HINTS\nfrom typing import Dict, List, Optional, Union, Any\n\ndef create_agent(name: str, config: Dict[str, Any]) -> Optional['BaseAgent']:\n    \"\"\"Crear agente con tipos claros\"\"\"\n    pass\n\n# 2. VALIDACIÓN DE ENTRADA\ndef execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:\n    \"\"\"Ejecutar acción con validación\"\"\"\n    # Validar tipos\n    if not isinstance(action, str):\n        raise TypeError(\"Action must be string\")\n        \n    if not isinstance(params, dict):\n        raise TypeError(\"Params must be dictionary\")\n        \n    # Validar valores\n    if not action.strip():\n        raise ValueError(\"Action cannot be empty\")\n        \n    # Continuar con lógica...\n\n# 3. MANEJO DE ERRORES ROBUSTO\nasync def safe_agent_operation(self, operation):\n    \"\"\"Operación segura con manejo de errores\"\"\"\n    try:\n        result = await operation()\n        return {\"success\": True, \"data\": result}\n        \n    except ConnectionError as e:\n        logger.error(f\"Connection failed: {e}\")\n        return {\"success\": False, \"error\": \"Network error\", \"retry\": True}\n        \n    except ValueError as e:\n        logger.error(f\"Invalid value: {e}\")\n        return {\"success\": False, \"error\": \"Invalid input\", \"retry\": False}\n        \n    except Exception as e:\n        logger.critical(f\"Unexpected error: {e}\")\n        return {\"success\": False, \"error\": \"Internal error\", \"retry\": False}\n\n# 4. TESTS UNITARIOS\nimport pytest\n\ndef test_agent_creation():\n    \"\"\"Test creación de agente\"\"\"\n    agent = create_agent(\"test_agent\", {\"type\": \"basic\"})\n    assert agent is not None\n    assert agent.name == \"test_agent\"\n\n# 5. CONFIGURACIÓN CENTRALIZADA\nclass FrameworkConfig:\n    \"\"\"Configuración centralizada del framework\"\"\"\n    \n    def __init__(self, config_file=\"config.yaml\"):\n        self.load_config(config_file)\n        \n    def get(self, key: str, default=None):\n        \"\"\"Obtener valor de configuración\"\"\"\n        return self._config.get(key, default)\n        ",
+      "benefits": [
+        "Código más robusto y confiable",
+        "Menos bugs en producción",
+        "Mejor performance",
+        "Facilita escalabilidad"
+      ]
+    },
+    {
+      "type": "documentation",
+      "title": "Mejorar Documentación del Código",
+      "description": "Añadir docstrings a 30 funciones/clases",
+      "priority_score": 30,
+      "files_affected": [
+        "systems/framework_config_utils.py",
+        "auto_improve_framework.py",
+        "core/security_system.py",
+        "interfaces/rest_api.py",
+        "examples/end_to_end_example.py",
+        "core/autonomous_agent_framework.py",
+        "framework_auto_improvement.py",
+        "core/monitoring_system.py"
+      ],
+      "implementation": "\n# Formato estándar para docstrings:\n\ndef execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:\n    \"\"\"\n    Ejecutar una acción específica del agente.\n    \n    Args:\n        action (str): Nombre de la acción a ejecutar\n        params (Dict[str, Any]): Parámetros para la acción\n        \n    Returns:\n        Dict[str, Any]: Resultado de la ejecución con formato:\n            - success (bool): Si la acción fue exitosa\n            - data (Any): Datos resultado de la acción\n            - error (str, opcional): Mensaje de error si falló\n            \n    Raises:\n        ValueError: Si la acción no es válida\n        RuntimeError: Si el agente no está activo\n        \n    Example:\n        >>> result = agent.execute_action(\"generate.code\", {\"language\": \"python\"})\n        >>> print(result[\"data\"][\"code\"])\n    \"\"\"\n    pass\n\nclass FrameworkAgent:\n    \"\"\"\n    Agente base del framework de agentes autónomos.\n    \n    Esta clase proporciona la funcionalidad básica que todos los agentes\n    deben implementar, incluyendo comunicación, gestión de estado y\n    ejecución de acciones.\n    \n    Attributes:\n        id (str): Identificador único del agente\n        name (str): Nombre descriptivo del agente\n        status (AgentStatus): Estado actual del agente\n        capabilities (List[AgentCapability]): Capacidades disponibles\n        \n    Example:\n        >>> agent = FrameworkAgent(\"agent.example\", \"mi_agente\", framework)\n        >>> await agent.start()\n        >>> result = await agent.execute_action(\"ping\", {})\n    \"\"\"\n    pass\n        ",
+      "benefits": [
+        "Mejor comprensión del código",
+        "Facilita mantenimiento",
+        "Genera documentación automática",
+        "Mejora experiencia de desarrollo"
+      ]
+    }
+  ],
+  "summary": {
+    "quality_score": 0,
+    "total_files": 16,
+    "total_issues": 518,
+    "total_improvements": 3
+  }
+}

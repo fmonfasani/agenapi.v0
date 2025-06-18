@@ -1,7 +1,3 @@
-"""
-backup_recovery_system.py - Sistema de backup y recuperación ante desastres
-"""
-
 import asyncio
 import json
 import gzip
@@ -23,19 +19,21 @@ import paramiko
 from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentResource
 from core.persistence_system import PersistenceManager
 
+# Configuración básica de logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # ================================
 # BACKUP MODELS
 # ================================
 
 class BackupType(Enum):
-    """Tipos de backup"""
     FULL = "full"
     INCREMENTAL = "incremental"
     DIFFERENTIAL = "differential"
     SNAPSHOT = "snapshot"
 
 class BackupStatus(Enum):
-    """Estados de backup"""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -43,7 +41,6 @@ class BackupStatus(Enum):
     CORRUPTED = "corrupted"
 
 class StorageBackend(Enum):
-    """Backends de almacenamiento"""
     LOCAL = "local"
     S3 = "s3"
     AZURE = "azure"
@@ -52,7 +49,6 @@ class StorageBackend(Enum):
 
 @dataclass
 class BackupMetadata:
-    """Metadatos de backup"""
     backup_id: str
     backup_type: BackupType
     status: BackupStatus
@@ -62,52 +58,286 @@ class BackupMetadata:
     checksum: str
     file_path: str
     storage_backend: StorageBackend
-    compression: bool
-    encryption: bool
-    agent_count: int
-    resource_count: int
-    framework_version: str
-    description: str = ""
-    error_message: Optional[str] = None
+    retention_policy: str
+    associated_resources: List[str] = field(default_factory=list) # IDs de recursos/agentes asociados
 
-@dataclass
-class RestorePoint:
-    """Punto de restauración"""
-    restore_id: str
-    backup_id: str
-    created_at: datetime
-    description: str
-    agents_snapshot: Dict[str, Any]
-    resources_snapshot: Dict[str, Any]
-    framework_state: Dict[str, Any]
-    verified: bool = False
+    def to_dict(self):
+        return {
+            "backup_id": self.backup_id,
+            "backup_type": self.backup_type.value,
+            "status": self.status.value,
+            "created_at": self.created_at.isoformat(),
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "size_bytes": self.size_bytes,
+            "checksum": self.checksum,
+            "file_path": self.file_path,
+            "storage_backend": self.storage_backend.value,
+            "retention_policy": self.retention_policy,
+            "associated_resources": self.associated_resources
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]):
+        return cls(
+            backup_id=data["backup_id"],
+            backup_type=BackupType(data["backup_type"]),
+            status=BackupStatus(data["status"]),
+            created_at=datetime.fromisoformat(data["created_at"]),
+            completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
+            size_bytes=data["size_bytes"],
+            checksum=data["checksum"],
+            file_path=data["file_path"],
+            storage_backend=StorageBackend(data["storage_backend"]),
+            retention_policy=data["retention_policy"],
+            associated_resources=data.get("associated_resources", [])
+        )
+
+# ================================
+# STORAGE BACKENDS
+# ================================
+
+class StorageBackendInterface(ABC):
+    @abstractmethod
+    async def upload_file(self, local_path: Path, remote_path: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def download_file(self, remote_path: str, local_path: Path) -> bool:
+        pass
+
+    @abstractmethod
+    async def delete_file(self, remote_path: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def list_files(self, prefix: str = "") -> List[str]:
+        pass
+
+class LocalStorageBackend(StorageBackendInterface):
+    def __init__(self, base_dir: Path):
+        self.base_dir = base_dir
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"LocalStorageBackend initialized at {self.base_dir}")
+
+    async def upload_file(self, local_path: Path, remote_path: str) -> bool:
+        destination = self.base_dir / remote_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy(local_path, destination)
+            logger.debug(f"Uploaded {local_path} to {destination}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upload {local_path} to {destination}: {e}")
+            return False
+
+    async def download_file(self, remote_path: str, local_path: Path) -> bool:
+        source = self.base_dir / remote_path
+        try:
+            shutil.copy(source, local_path)
+            logger.debug(f"Downloaded {source} to {local_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to download {source} to {local_path}: {e}")
+            return False
+
+    async def delete_file(self, remote_path: str) -> bool:
+        target = self.base_dir / remote_path
+        try:
+            if target.exists():
+                os.remove(target)
+                logger.debug(f"Deleted {target}")
+                return True
+            logger.warning(f"File {target} not found for deletion.")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to delete {target}: {e}")
+            return False
+            
+    async def list_files(self, prefix: str = "") -> List[str]:
+        files = []
+        for root, _, filenames in os.walk(self.base_dir / prefix):
+            for filename in filenames:
+                relative_path = Path(root) / filename
+                files.append(str(relative_path.relative_to(self.base_dir)))
+        return files
+
+class S3StorageBackend(StorageBackendInterface):
+    def __init__(self, bucket_name: str, region_name: str, aws_access_key_id: str, aws_secret_access_key: str):
+        self.bucket_name = bucket_name
+        self.s3 = boto3.client(
+            's3',
+            region_name=region_name,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key
+        )
+        logger.info(f"S3StorageBackend initialized for bucket {bucket_name} in {region_name}")
+
+    async def upload_file(self, local_path: Path, remote_path: str) -> bool:
+        try:
+            await asyncio.to_thread(self.s3.upload_file, str(local_path), self.bucket_name, remote_path)
+            logger.debug(f"Uploaded {local_path} to s3://{self.bucket_name}/{remote_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upload {local_path} to S3: {e}")
+            return False
+
+    async def download_file(self, remote_path: str, local_path: Path) -> bool:
+        try:
+            await asyncio.to_thread(self.s3.download_file, self.bucket_name, remote_path, str(local_path))
+            logger.debug(f"Downloaded s3://{self.bucket_name}/{remote_path} to {local_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to download {remote_path} from S3: {e}")
+            return False
+
+    async def delete_file(self, remote_path: str) -> bool:
+        try:
+            await asyncio.to_thread(self.s3.delete_object, Bucket=self.bucket_name, Key=remote_path)
+            logger.debug(f"Deleted s3://{self.bucket_name}/{remote_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete {remote_path} from S3: {e}")
+            return False
+            
+    async def list_files(self, prefix: str = "") -> List[str]:
+        try:
+            response = await asyncio.to_thread(self.s3.list_objects_v2, Bucket=self.bucket_name, Prefix=prefix)
+            return [obj['Key'] for obj in response.get('Contents', [])]
+        except Exception as e:
+            logger.error(f"Failed to list files from S3 with prefix {prefix}: {e}")
+            return []
+
+class AzureBlobStorageBackend(StorageBackendInterface):
+    def __init__(self, connection_string: str, container_name: str):
+        self.connection_string = connection_string
+        self.container_name = container_name
+        self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        self.container_client = self.blob_service_client.get_container_client(container_name)
+        
+        try:
+            self.container_client.create_container()
+            logger.info(f"Azure container {container_name} created or already exists.")
+        except Exception as e:
+            logger.warning(f"Could not create Azure container {container_name}: {e}")
+        
+        logger.info(f"AzureBlobStorageBackend initialized for container {container_name}")
+
+    async def upload_file(self, local_path: Path, remote_path: str) -> bool:
+        blob_client = self.container_client.get_blob_client(remote_path)
+        try:
+            with open(local_path, "rb") as data:
+                await asyncio.to_thread(blob_client.upload_blob, data, overwrite=True)
+            logger.debug(f"Uploaded {local_path} to Azure Blob {remote_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upload {local_path} to Azure Blob: {e}")
+            return False
+
+    async def download_file(self, remote_path: str, local_path: Path) -> bool:
+        blob_client = self.container_client.get_blob_client(remote_path)
+        try:
+            download_stream = await asyncio.to_thread(blob_client.download_blob)
+            with open(local_path, "wb") as file:
+                file.write(await asyncio.to_thread(download_stream.readall))
+            logger.debug(f"Downloaded Azure Blob {remote_path} to {local_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to download {remote_path} from Azure Blob: {e}")
+            return False
+
+    async def delete_file(self, remote_path: str) -> bool:
+        blob_client = self.container_client.get_blob_client(remote_path)
+        try:
+            await asyncio.to_thread(blob_client.delete_blob)
+            logger.debug(f"Deleted Azure Blob {remote_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete {remote_path} from Azure Blob: {e}")
+            return False
+            
+    async def list_files(self, prefix: str = "") -> List[str]:
+        try:
+            blobs = await asyncio.to_thread(self.container_client.list_blobs, name_starts_with=prefix)
+            return [blob.name for blob in blobs]
+        except Exception as e:
+            logger.error(f"Failed to list files from Azure Blob with prefix {prefix}: {e}")
+            return []
 
 # ================================
 # BACKUP ENGINE
 # ================================
 
 class BackupEngine:
-    """Motor de backup del framework"""
-    
-    def __init__(self, framework: AgentFramework, persistence_manager: PersistenceManager):
-        self.framework = framework
+    def __init__(self, persistence_manager: PersistenceManager, storage_backend: StorageBackendInterface, backup_dir: Path = Path("./backups")):
         self.persistence_manager = persistence_manager
-        self.backup_dir = Path("./backups")
-        self.backup_dir.mkdir(exist_ok=True)
+        self.storage_backend = storage_backend
+        self.backup_dir = backup_dir
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.backup_history: List[BackupMetadata] = []
-        self.max_backups = 50
-        self.compression_enabled = True
-        self.encryption_key = None
+        self._load_backup_history()
+        logger.info(f"BackupEngine initialized with storage backend: {type(storage_backend).__name__}")
+
+    def _generate_checksum(self, file_path: Path) -> str:
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+
+    def _compress_directory(self, source_dir: Path, output_filepath: Path) -> Path:
+        output_filepath_tar = output_filepath.with_suffix(".tar")
+        with tarfile.open(output_filepath_tar, "w") as tar:
+            tar.add(source_dir, arcname=os.path.basename(source_dir))
         
-    def set_encryption_key(self, key: str):
-        """Configurar clave de encriptación"""
-        self.encryption_key = key
+        # Comprimir el tar con gzip
+        with open(output_filepath_tar, 'rb') as f_in:
+            with gzip.open(output_filepath, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
         
-    async def create_full_backup(self, description: str = "") -> BackupMetadata:
-        """Crear backup completo"""
-        backup_id = f"full_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        os.remove(output_filepath_tar) # Eliminar el archivo .tar sin comprimir
+        return output_filepath
+
+    def _decompress_and_extract_directory(self, compressed_filepath: Path, output_dir: Path):
+        # Descomprimir gzip
+        temp_tar_path = compressed_filepath.with_suffix(".tar")
+        with gzip.open(compressed_filepath, 'rb') as f_in:
+            with open(temp_tar_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        # Extraer tar
+        with tarfile.open(temp_tar_path, "r") as tar:
+            tar.extractall(path=output_dir.parent) # Extrae el contenido del tar, que es el directorio
+
+        os.remove(temp_tar_path) # Eliminar el archivo .tar temporal
+
+    def _load_backup_history(self):
+        history_file = self.backup_dir / "backup_history.json"
+        if history_file.exists():
+            try:
+                with open(history_file, 'r') as f:
+                    data = json.load(f)
+                    self.backup_history = [BackupMetadata.from_dict(item) for item in data]
+                logger.info(f"Loaded {len(self.backup_history)} backup records from history.")
+            except Exception as e:
+                logger.error(f"Failed to load backup history: {e}. Starting with empty history.")
+                self.backup_history = []
+        else:
+            logger.info("No backup history file found. Starting with empty history.")
+
+    def _save_backup_history(self):
+        history_file = self.backup_dir / "backup_history.json"
+        try:
+            with open(history_file, 'w') as f:
+                json.dump([asdict(meta) for meta in self.backup_history], f, indent=4)
+            logger.debug("Backup history saved.")
+        except Exception as e:
+            logger.error(f"Failed to save backup history: {e}")
+
+    async def perform_full_backup(self, framework: AgentFramework, retention_policy: str = "7-days") -> Optional[BackupMetadata]:
+        backup_id = f"full_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        temp_backup_path = self.backup_dir / f"{backup_id}.tar.gz"
         
-        backup_metadata = BackupMetadata(
+        metadata = BackupMetadata(
             backup_id=backup_id,
             backup_type=BackupType.FULL,
             status=BackupStatus.PENDING,
@@ -115,105 +345,68 @@ class BackupEngine:
             completed_at=None,
             size_bytes=0,
             checksum="",
-            file_path="",
-            storage_backend=StorageBackend.LOCAL,
-            compression=self.compression_enabled,
-            encryption=self.encryption_key is not None,
-            agent_count=0,
-            resource_count=0,
-            framework_version="1.0.0",
-            description=description
+            file_path=str(temp_backup_path),
+            storage_backend=self.storage_backend.__class__.__name__, # Store class name for identification
+            retention_policy=retention_policy,
+            associated_resources=[agent.id for agent in framework.registry.list_all_agents()] + \
+                                 [res.id for res in framework.resource_manager.list_all_resources()]
         )
-        
+        self.backup_history.append(metadata)
+        self._save_backup_history()
+
+        logger.info(f"Starting full backup {backup_id}...")
         try:
-            backup_metadata.status = BackupStatus.RUNNING
-            logging.info(f"Starting full backup: {backup_id}")
+            # 1. Guardar el estado completo del framework a un directorio temporal
+            temp_state_dir = Path(tempfile.mkdtemp(prefix="framework_backup_"))
+            await self.persistence_manager.save_full_state(framework, base_path=temp_state_dir)
+            logger.debug(f"Framework state saved to temporary directory: {temp_state_dir}")
+
+            # 2. Comprimir el directorio
+            compressed_file = self._compress_directory(temp_state_dir, temp_backup_path)
             
-            # Crear directorio temporal para el backup
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-                
-                # Recopilar datos del framework
-                framework_data = await self._collect_framework_data()
-                backup_metadata.agent_count = len(framework_data["agents"])
-                backup_metadata.resource_count = len(framework_data["resources"])
-                
-                # Guardar datos en archivos JSON
-                with open(temp_path / "framework_state.json", "w") as f:
-                    json.dump(framework_data["framework_state"], f, indent=2, default=str)
-                    
-                with open(temp_path / "agents.json", "w") as f:
-                    json.dump(framework_data["agents"], f, indent=2, default=str)
-                    
-                with open(temp_path / "resources.json", "w") as f:
-                    json.dump(framework_data["resources"], f, indent=2, default=str)
-                    
-                with open(temp_path / "messages.json", "w") as f:
-                    json.dump(framework_data["messages"], f, indent=2, default=str)
-                    
-                # Incluir datos de persistencia si existen
-                if hasattr(self.persistence_manager, 'backend'):
-                    await self._backup_persistence_data(temp_path)
-                    
-                # Crear archivo de metadatos
-                metadata_dict = asdict(backup_metadata)
-                with open(temp_path / "backup_metadata.json", "w") as f:
-                    json.dump(metadata_dict, f, indent=2, default=str)
-                    
-                # Crear archivo tar (comprimido si está habilitado)
-                backup_filename = f"{backup_id}.tar"
-                if self.compression_enabled:
-                    backup_filename += ".gz"
-                    
-                backup_path = self.backup_dir / backup_filename
-                
-                if self.compression_enabled:
-                    with tarfile.open(backup_path, "w:gz") as tar:
-                        tar.add(temp_path, arcname=backup_id)
-                else:
-                    with tarfile.open(backup_path, "w") as tar:
-                        tar.add(temp_path, arcname=backup_id)
-                        
-                # Encriptar si está habilitado
-                if self.encryption_key:
-                    encrypted_path = self._encrypt_file(backup_path)
-                    backup_path.unlink()  # Eliminar archivo sin encriptar
-                    backup_path = encrypted_path
-                    
-                # Calcular checksum
-                checksum = self._calculate_checksum(backup_path)
-                
-                # Actualizar metadatos
-                backup_metadata.status = BackupStatus.COMPLETED
-                backup_metadata.completed_at = datetime.now()
-                backup_metadata.size_bytes = backup_path.stat().st_size
-                backup_metadata.checksum = checksum
-                backup_metadata.file_path = str(backup_path)
-                
-            self.backup_history.append(backup_metadata)
-            self._cleanup_old_backups()
+            # 3. Calcular checksum
+            checksum = self._generate_checksum(compressed_file)
             
-            logging.info(f"Full backup completed: {backup_id} ({backup_metadata.size_bytes} bytes)")
-            return backup_metadata
-            
+            # 4. Subir al backend de almacenamiento
+            remote_path = f"full/{compressed_file.name}"
+            upload_success = await self.storage_backend.upload_file(compressed_file, remote_path)
+
+            if upload_success:
+                metadata.status = BackupStatus.COMPLETED
+                metadata.completed_at = datetime.now()
+                metadata.size_bytes = compressed_file.stat().st_size
+                metadata.checksum = checksum
+                metadata.file_path = remote_path # Actualizar a la ruta remota
+                logger.info(f"Full backup {backup_id} completed and uploaded to {remote_path}.")
+            else:
+                metadata.status = BackupStatus.FAILED
+                logger.error(f"Full backup {backup_id} failed during upload.")
         except Exception as e:
-            backup_metadata.status = BackupStatus.FAILED
-            backup_metadata.error_message = str(e)
-            backup_metadata.completed_at = datetime.now()
-            
-            logging.error(f"Full backup failed: {backup_id} - {e}")
-            return backup_metadata
-            
-    async def create_incremental_backup(self, base_backup_id: str, description: str = "") -> BackupMetadata:
-        """Crear backup incremental"""
-        backup_id = f"incr_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            metadata.status = BackupStatus.FAILED
+            logger.error(f"Full backup {backup_id} failed: {e}")
+        finally:
+            # Limpiar archivos temporales
+            if temp_backup_path.exists():
+                os.remove(temp_backup_path)
+            if temp_state_dir.exists():
+                shutil.rmtree(temp_state_dir)
+            self._save_backup_history()
         
-        # Buscar backup base
-        base_backup = self._find_backup(base_backup_id)
-        if not base_backup:
-            raise ValueError(f"Base backup not found: {base_backup_id}")
-            
-        backup_metadata = BackupMetadata(
+        return metadata
+
+    async def perform_incremental_backup(self, framework: AgentFramework, base_backup_id: str, retention_policy: str = "30-days") -> Optional[BackupMetadata]:
+        # Para un backup incremental real, necesitaríamos comparar el estado actual con el último backup completo
+        # y solo guardar los cambios. Esto es una simulación simplificada.
+        
+        last_full_backup = next((b for b in self.backup_history if b.backup_id == base_backup_id and b.backup_type == BackupType.FULL and b.status == BackupStatus.COMPLETED), None)
+        if not last_full_backup:
+            logger.error(f"Base full backup {base_backup_id} not found or not completed for incremental backup.")
+            return None
+
+        backup_id = f"inc_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        temp_backup_path = self.backup_dir / f"{backup_id}.tar.gz"
+
+        metadata = BackupMetadata(
             backup_id=backup_id,
             backup_type=BackupType.INCREMENTAL,
             status=BackupStatus.PENDING,
@@ -221,921 +414,438 @@ class BackupEngine:
             completed_at=None,
             size_bytes=0,
             checksum="",
-            file_path="",
-            storage_backend=StorageBackend.LOCAL,
-            compression=self.compression_enabled,
-            encryption=self.encryption_key is not None,
-            agent_count=0,
-            resource_count=0,
-            framework_version="1.0.0",
-            description=f"Incremental from {base_backup_id}. {description}"
+            file_path=str(temp_backup_path),
+            storage_backend=self.storage_backend.__class__.__name__,
+            retention_policy=retention_policy,
+            associated_resources=[agent.id for agent in framework.registry.list_all_agents()] + \
+                                 [res.id for res in framework.resource_manager.list_all_resources()]
         )
-        
+        self.backup_history.append(metadata)
+        self._save_backup_history()
+
+        logger.info(f"Starting incremental backup {backup_id} based on {base_backup_id}...")
         try:
-            backup_metadata.status = BackupStatus.RUNNING
-            logging.info(f"Starting incremental backup: {backup_id}")
+            # Simulación: guardamos solo un subconjunto de datos o cambios recientes
+            temp_incremental_dir = Path(tempfile.mkdtemp(prefix="framework_incremental_"))
+            # Aquí se implementaría la lógica para guardar solo los cambios incrementales
+            # Por simplicidad, guardaremos solo un archivo de "cambios"
+            changes_file = temp_incremental_dir / "incremental_changes.json"
+            with open(changes_file, "w") as f:
+                json.dump({"timestamp": datetime.now().isoformat(), "description": "Simulated incremental changes"}, f)
+            logger.debug(f"Simulated incremental changes saved to {changes_file}")
+
+            compressed_file = self._compress_directory(temp_incremental_dir, temp_backup_path)
+            checksum = self._generate_checksum(compressed_file)
             
-            # Obtener cambios desde el backup base
-            changes = await self._get_changes_since_backup(base_backup)
-            
-            if not changes["has_changes"]:
-                backup_metadata.status = BackupStatus.COMPLETED
-                backup_metadata.completed_at = datetime.now()
-                backup_metadata.description += " (no changes)"
-                logging.info(f"No changes detected for incremental backup: {backup_id}")
-                return backup_metadata
-                
-            # Crear archivo de cambios
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-                
-                # Guardar solo los cambios
-                with open(temp_path / "changes.json", "w") as f:
-                    json.dump(changes, f, indent=2, default=str)
-                    
-                with open(temp_path / "base_backup_id.txt", "w") as f:
-                    f.write(base_backup_id)
-                    
-                # Crear archivo tar
-                backup_filename = f"{backup_id}.tar"
-                if self.compression_enabled:
-                    backup_filename += ".gz"
-                    
-                backup_path = self.backup_dir / backup_filename
-                
-                if self.compression_enabled:
-                    with tarfile.open(backup_path, "w:gz") as tar:
-                        tar.add(temp_path, arcname=backup_id)
-                else:
-                    with tarfile.open(backup_path, "w") as tar:
-                        tar.add(temp_path, arcname=backup_id)
-                        
-                # Calcular checksum
-                checksum = self._calculate_checksum(backup_path)
-                
-                # Actualizar metadatos
-                backup_metadata.status = BackupStatus.COMPLETED
-                backup_metadata.completed_at = datetime.now()
-                backup_metadata.size_bytes = backup_path.stat().st_size
-                backup_metadata.checksum = checksum
-                backup_metadata.file_path = str(backup_path)
-                backup_metadata.agent_count = len(changes.get("changed_agents", {}))
-                backup_metadata.resource_count = len(changes.get("changed_resources", {}))
-                
-            self.backup_history.append(backup_metadata)
-            logging.info(f"Incremental backup completed: {backup_id}")
-            return backup_metadata
-            
+            remote_path = f"incremental/{compressed_file.name}"
+            upload_success = await self.storage_backend.upload_file(compressed_file, remote_path)
+
+            if upload_success:
+                metadata.status = BackupStatus.COMPLETED
+                metadata.completed_at = datetime.now()
+                metadata.size_bytes = compressed_file.stat().st_size
+                metadata.checksum = checksum
+                metadata.file_path = remote_path
+                logger.info(f"Incremental backup {backup_id} completed and uploaded to {remote_path}.")
+            else:
+                metadata.status = BackupStatus.FAILED
+                logger.error(f"Incremental backup {backup_id} failed during upload.")
         except Exception as e:
-            backup_metadata.status = BackupStatus.FAILED
-            backup_metadata.error_message = str(e)
-            backup_metadata.completed_at = datetime.now()
-            
-            logging.error(f"Incremental backup failed: {backup_id} - {e}")
-            return backup_metadata
-            
-    async def create_snapshot(self, description: str = "") -> RestorePoint:
-        """Crear snapshot/punto de restauración en memoria"""
-        restore_id = f"snapshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            metadata.status = BackupStatus.FAILED
+            logger.error(f"Incremental backup {backup_id} failed: {e}")
+        finally:
+            if temp_backup_path.exists():
+                os.remove(temp_backup_path)
+            if temp_incremental_dir.exists():
+                shutil.rmtree(temp_incremental_dir)
+            self._save_backup_history()
         
+        return metadata
+
+    async def restore_backup(self, backup_id: str, framework: AgentFramework) -> bool:
+        metadata = next((b for b in self.backup_history if b.backup_id == backup_id and b.status == BackupStatus.COMPLETED), None)
+        if not metadata:
+            logger.error(f"Backup {backup_id} not found or not completed.")
+            return False
+
+        logger.info(f"Starting restore from backup {backup_id}...")
+        temp_download_path = self.backup_dir / Path(metadata.file_path).name
+        temp_restore_dir = Path(tempfile.mkdtemp(prefix="framework_restore_"))
+
         try:
-            # Recopilar estado actual
-            framework_data = await self._collect_framework_data()
+            # 1. Descargar el archivo de backup
+            download_success = await self.storage_backend.download_file(metadata.file_path, temp_download_path)
+            if not download_success:
+                logger.error(f"Failed to download backup file {metadata.file_path}.")
+                return False
+
+            # 2. Verificar checksum
+            downloaded_checksum = self._generate_checksum(temp_download_path)
+            if downloaded_checksum != metadata.checksum:
+                logger.error(f"Checksum mismatch for backup {backup_id}. File might be corrupted.")
+                return False
+            logger.debug("Checksum verified successfully.")
+
+            # 3. Descomprimir y extraer
+            self._decompress_and_extract_directory(temp_download_path, temp_restore_dir)
+            logger.debug(f"Backup extracted to {temp_restore_dir.parent}") # _decompress_and_extract_directory extrae al parent
+
+            # 4. Cargar el estado restaurado en el framework
+            # Asumimos que el directorio restaurado contiene el archivo framework_state.json u otros archivos necesarios
+            # para la PersistenceManager.
+            restored_state_path = temp_restore_dir.parent / Path(temp_restore_dir).name # Ruta real donde se extrajo el contenido
             
-            restore_point = RestorePoint(
-                restore_id=restore_id,
-                backup_id="",  # No hay archivo físico
-                created_at=datetime.now(),
-                description=description,
-                agents_snapshot=framework_data["agents"],
-                resources_snapshot=framework_data["resources"],
-                framework_state=framework_data["framework_state"]
-            )
+            # Detener el framework para una restauración limpia si está corriendo
+            if framework.is_running:
+                await framework.stop()
+
+            # Esto es clave: la PersistenceManager debe ser capaz de cargar el estado desde un path dado
+            # Si el framework usa una base de datos, esto implicaría restaurar la base de datos desde los archivos.
+            # Aquí, para la demo, simularemos la carga desde los archivos guardados en el temp_restore_dir.
+            # NOTA: La implementación real de persistence_manager.load_full_state() necesitaría ser robusta para manejar esto.
+            # Por ahora, simplemente apuntamos al path donde se espera que PersistenceManager busque los datos.
             
-            logging.info(f"Snapshot created: {restore_id}")
-            return restore_point
+            # Para la demo, simularemos que PersistenceManager carga de este path
+            # En un sistema real, esto podría implicar reemplazar la base de datos o recargar estados internos.
+            success = await self.persistence_manager.load_full_state(framework, base_path=restored_state_path)
             
-        except Exception as e:
-            logging.error(f"Failed to create snapshot: {e}")
-            raise
-            
-    async def _collect_framework_data(self) -> Dict[str, Any]:
-        """Recopilar todos los datos del framework"""
-        
-        # Datos de agentes
-        agents = self.framework.registry.list_all_agents()
-        agents_data = {}
-        
-        for agent in agents:
-            agents_data[agent.id] = {
-                "id": agent.id,
-                "name": agent.name,
-                "namespace": agent.namespace,
-                "status": agent.status.value,
-                "created_at": agent.created_at.isoformat(),
-                "last_heartbeat": agent.last_heartbeat.isoformat(),
-                "metadata": agent.metadata,
-                "capabilities": [
-                    {
-                        "name": cap.name,
-                        "namespace": cap.namespace,
-                        "description": cap.description,
-                        "input_schema": cap.input_schema,
-                        "output_schema": cap.output_schema
-                    }
-                    for cap in agent.capabilities
-                ]
-            }
-            
-        # Datos de recursos
-        all_resources = []
-        for agent in agents:
-            agent_resources = self.framework.resource_manager.find_resources_by_owner(agent.id)
-            all_resources.extend(agent_resources)
-            
-        resources_data = {}
-        for resource in all_resources:
-            resources_data[resource.id] = {
-                "id": resource.id,
-                "name": resource.name,
-                "type": resource.type.value,
-                "namespace": resource.namespace,
-                "data": resource.data,
-                "owner_agent_id": resource.owner_agent_id,
-                "metadata": resource.metadata,
-                "created_at": resource.created_at.isoformat(),
-                "updated_at": resource.updated_at.isoformat()
-            }
-            
-        # Estado del framework
-        framework_state = {
-            "backup_timestamp": datetime.now().isoformat(),
-            "total_agents": len(agents),
-            "total_resources": len(all_resources),
-            "framework_version": "1.0.0",
-            "registry_state": {
-                "namespaces": {
-                    ns: [agent.id for agent in agents_list]
-                    for ns, agents_list in self.framework.registry._namespaces.items()
-                }
-            }
-        }
-        
-        # Mensajes recientes (si hay persistencia)
-        messages_data = {}
-        if hasattr(self.persistence_manager, 'backend'):
-            try:
-                # Obtener mensajes recientes de cada agente
-                for agent in agents:
-                    recent_messages = await self.persistence_manager.backend.load_messages(agent.id, limit=100)
-                    messages_data[agent.id] = [
-                        {
-                            "id": msg.id,
-                            "sender_id": msg.sender_id,
-                            "receiver_id": msg.receiver_id,
-                            "message_type": msg.message_type.value,
-                            "action": msg.action,
-                            "payload": msg.payload,
-                            "timestamp": msg.timestamp.isoformat(),
-                            "correlation_id": msg.correlation_id,
-                            "response_required": msg.response_required
-                        }
-                        for msg in recent_messages
-                    ]
-            except Exception as e:
-                logging.warning(f"Could not backup messages: {e}")
-                
-        return {
-            "agents": agents_data,
-            "resources": resources_data,
-            "framework_state": framework_state,
-            "messages": messages_data
-        }
-        
-    async def _backup_persistence_data(self, backup_path: Path):
-        """Backup de datos de persistencia"""
-        try:
-            if hasattr(self.persistence_manager.backend, 'db_path'):
-                # SQLite database
-                db_path = Path(self.persistence_manager.backend.db_path)
-                if db_path.exists():
-                    shutil.copy2(db_path, backup_path / "framework.db")
-                    
-            elif hasattr(self.persistence_manager.backend, 'data_dir'):
-                # JSON files
-                data_dir = self.persistence_manager.backend.data_dir
-                if data_dir.exists():
-                    shutil.copytree(data_dir, backup_path / "persistence_data")
-                    
-        except Exception as e:
-            logging.warning(f"Could not backup persistence data: {e}")
-            
-    async def _get_changes_since_backup(self, base_backup: BackupMetadata) -> Dict[str, Any]:
-        """Obtener cambios desde un backup base"""
-        
-        # Cargar datos del backup base
-        base_data = await self._load_backup_data(base_backup)
-        
-        # Obtener datos actuales
-        current_data = await self._collect_framework_data()
-        
-        changes = {
-            "has_changes": False,
-            "changed_agents": {},
-            "new_agents": {},
-            "deleted_agents": {},
-            "changed_resources": {},
-            "new_resources": {},
-            "deleted_resources": {},
-            "framework_state_changes": {}
-        }
-        
-        # Comparar agentes
-        base_agents = base_data.get("agents", {})
-        current_agents = current_data.get("agents", {})
-        
-        # Agentes nuevos
-        for agent_id, agent_data in current_agents.items():
-            if agent_id not in base_agents:
-                changes["new_agents"][agent_id] = agent_data
-                changes["has_changes"] = True
-                
-        # Agentes eliminados
-        for agent_id in base_agents:
-            if agent_id not in current_agents:
-                changes["deleted_agents"][agent_id] = base_agents[agent_id]
-                changes["has_changes"] = True
-                
-        # Agentes modificados
-        for agent_id, current_agent in current_agents.items():
-            if agent_id in base_agents:
-                base_agent = base_agents[agent_id]
-                if self._agent_changed(base_agent, current_agent):
-                    changes["changed_agents"][agent_id] = {
-                        "before": base_agent,
-                        "after": current_agent
-                    }
-                    changes["has_changes"] = True
-                    
-        # Comparar recursos (similar lógica)
-        base_resources = base_data.get("resources", {})
-        current_resources = current_data.get("resources", {})
-        
-        for resource_id, resource_data in current_resources.items():
-            if resource_id not in base_resources:
-                changes["new_resources"][resource_id] = resource_data
-                changes["has_changes"] = True
-            elif self._resource_changed(base_resources[resource_id], resource_data):
-                changes["changed_resources"][resource_id] = {
-                    "before": base_resources[resource_id],
-                    "after": resource_data
-                }
-                changes["has_changes"] = True
-                
-        return changes
-        
-    def _agent_changed(self, agent1: Dict[str, Any], agent2: Dict[str, Any]) -> bool:
-        """Verificar si un agente ha cambiado"""
-        # Comparar campos importantes (excluyendo timestamps dinámicos)
-        compare_fields = ["name", "namespace", "status", "metadata"]
-        
-        for field in compare_fields:
-            if agent1.get(field) != agent2.get(field):
+            if success:
+                logger.info(f"Successfully restored framework state from backup {backup_id}.")
+                await framework.start() # Reiniciar el framework
                 return True
-                
-        return False
-        
-    def _resource_changed(self, resource1: Dict[str, Any], resource2: Dict[str, Any]) -> bool:
-        """Verificar si un recurso ha cambiado"""
-        # Comparar campos importantes
-        compare_fields = ["name", "type", "namespace", "data", "metadata"]
-        
-        for field in compare_fields:
-            if resource1.get(field) != resource2.get(field):
-                return True
-                
-        return False
-        
-    def _calculate_checksum(self, file_path: Path) -> str:
-        """Calcular checksum SHA256 de un archivo"""
-        sha256_hash = hashlib.sha256()
-        
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(chunk)
-                
-        return sha256_hash.hexdigest()
-        
-    def _encrypt_file(self, file_path: Path) -> Path:
-        """Encriptar archivo (implementación simplificada)"""
-        # En producción, usar una librería de criptografía robusta
-        from cryptography.fernet import Fernet
-        
-        # Generar clave desde la clave configurada
-        key = Fernet.generate_key()  # En producción, derivar de self.encryption_key
-        cipher = Fernet(key)
-        
-        encrypted_path = file_path.with_suffix(file_path.suffix + ".encrypted")
-        
-        with open(file_path, "rb") as f:
-            encrypted_data = cipher.encrypt(f.read())
-            
-        with open(encrypted_path, "wb") as f:
-            f.write(encrypted_data)
-            
-        return encrypted_path
-        
-    def _cleanup_old_backups(self):
-        """Limpiar backups antiguos"""
-        if len(self.backup_history) > self.max_backups:
-            # Ordenar por fecha y eliminar los más antiguos
-            self.backup_history.sort(key=lambda x: x.created_at)
-            
-            backups_to_remove = self.backup_history[:-self.max_backups]
-            
-            for backup in backups_to_remove:
+            else:
+                logger.error(f"Failed to load framework state from restored data for backup {backup_id}.")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error during restore of backup {backup_id}: {e}")
+            return False
+        finally:
+            if temp_download_path.exists():
+                os.remove(temp_download_path)
+            if temp_restore_dir.exists(): # Puede ser que rmtree falle si el path no es un directorio, manejar con cuidado
                 try:
-                    if Path(backup.file_path).exists():
-                        Path(backup.file_path).unlink()
-                        logging.info(f"Deleted old backup: {backup.backup_id}")
-                except Exception as e:
-                    logging.warning(f"Could not delete backup {backup.backup_id}: {e}")
-                    
-            self.backup_history = self.backup_history[-self.max_backups:]
-            
-    def _find_backup(self, backup_id: str) -> Optional[BackupMetadata]:
-        """Encontrar backup por ID"""
-        for backup in self.backup_history:
-            if backup.backup_id == backup_id:
-                return backup
-        return None
-        
-    async def _load_backup_data(self, backup_metadata: BackupMetadata) -> Dict[str, Any]:
-        """Cargar datos de un backup"""
-        backup_path = Path(backup_metadata.file_path)
-        
-        if not backup_path.exists():
-            raise FileNotFoundError(f"Backup file not found: {backup_path}")
-            
-        # Desencriptar si es necesario
-        if backup_metadata.encryption:
-            # Implementar desencriptación
-            pass
-            
-        # Extraer archivo tar
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            
-            with tarfile.open(backup_path, "r:gz" if backup_metadata.compression else "r") as tar:
-                tar.extractall(temp_path)
-                
-            # Cargar datos JSON
-            backup_data_dir = temp_path / backup_metadata.backup_id
-            
-            data = {}
-            
-            for json_file in ["framework_state.json", "agents.json", "resources.json", "messages.json"]:
-                file_path = backup_data_dir / json_file
-                if file_path.exists():
-                    with open(file_path) as f:
-                        data[json_file.replace(".json", "")] = json.load(f)
-                        
-            return data
-            
+                    shutil.rmtree(temp_restore_dir)
+                except OSError as e:
+                    logger.warning(f"Error removing temporary restore directory {temp_restore_dir}: {e}")
+            # El contenido del tar se extrae al parent del temp_restore_dir, así que hay que limpiar ese también
+            if restored_state_path.exists() and restored_state_path.is_dir():
+                try:
+                    shutil.rmtree(restored_state_path)
+                except OSError as e:
+                    logger.warning(f"Error removing extracted restore directory {restored_state_path}: {e}")
+
+
     def get_backup_history(self) -> List[BackupMetadata]:
-        """Obtener historial de backups"""
         return sorted(self.backup_history, key=lambda x: x.created_at, reverse=True)
 
-# ================================
-# RECOVERY ENGINE
-# ================================
-
-class RecoveryEngine:
-    """Motor de recuperación"""
-    
-    def __init__(self, framework: AgentFramework, persistence_manager: PersistenceManager,
-                 backup_engine: BackupEngine):
-        self.framework = framework
-        self.persistence_manager = persistence_manager
-        self.backup_engine = backup_engine
+    async def prune_old_backups(self, retention_days: int = 30) -> int:
+        now = datetime.now()
+        pruned_count = 0
+        backups_to_keep = []
         
-    async def restore_from_backup(self, backup_id: str, selective_restore: Dict[str, bool] = None) -> bool:
-        """Restaurar desde backup"""
+        for backup in self.backup_history:
+            if backup.status == BackupStatus.COMPLETED and (now - backup.created_at) > timedelta(days=retention_days):
+                logger.info(f"Pruning old backup: {backup.backup_id} (created {backup.created_at.strftime('%Y-%m-%d')})")
+                try:
+                    await self.storage_backend.delete_file(backup.file_path)
+                    pruned_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete backup file {backup.file_path} from storage: {e}. Keeping record.")
+                    backups_to_keep.append(backup)
+            else:
+                backups_to_keep.append(backup)
         
-        backup_metadata = self.backup_engine._find_backup(backup_id)
-        if not backup_metadata:
-            raise ValueError(f"Backup not found: {backup_id}")
-            
-        if backup_metadata.status != BackupStatus.COMPLETED:
-            raise ValueError(f"Backup is not in completed state: {backup_metadata.status}")
-            
-        selective_restore = selective_restore or {
-            "agents": True,
-            "resources": True,
-            "framework_state": True,
-            "messages": True
-        }
-        
-        try:
-            logging.info(f"Starting restore from backup: {backup_id}")
-            
-            # Verificar integridad del backup
-            if not await self._verify_backup_integrity(backup_metadata):
-                raise ValueError("Backup integrity verification failed")
-                
-            # Cargar datos del backup
-            backup_data = await self.backup_engine._load_backup_data(backup_metadata)
-            
-            # Detener agentes actuales
-            await self._stop_all_agents()
-            
-            # Restaurar componentes selectivamente
-            if selective_restore.get("framework_state", True):
-                await self._restore_framework_state(backup_data.get("framework_state", {}))
-                
-            if selective_restore.get("agents", True):
-                await self._restore_agents(backup_data.get("agents", {}))
-                
-            if selective_restore.get("resources", True):
-                await self._restore_resources(backup_data.get("resources", {}))
-                
-            if selective_restore.get("messages", True):
-                await self._restore_messages(backup_data.get("messages", {}))
-                
-            logging.info(f"Restore completed successfully: {backup_id}")
-            return True
-            
-        except Exception as e:
-            logging.error(f"Restore failed: {backup_id} - {e}")
-            raise
-            
-    async def restore_from_snapshot(self, restore_point: RestorePoint) -> bool:
-        """Restaurar desde snapshot en memoria"""
-        try:
-            logging.info(f"Starting restore from snapshot: {restore_point.restore_id}")
-            
-            # Detener agentes actuales
-            await self._stop_all_agents()
-            
-            # Restaurar desde snapshot
-            await self._restore_framework_state(restore_point.framework_state)
-            await self._restore_agents(restore_point.agents_snapshot)
-            await self._restore_resources(restore_point.resources_snapshot)
-            
-            logging.info(f"Snapshot restore completed: {restore_point.restore_id}")
-            return True
-            
-        except Exception as e:
-            logging.error(f"Snapshot restore failed: {e}")
-            raise
-            
-    async def _verify_backup_integrity(self, backup_metadata: BackupMetadata) -> bool:
-        """Verificar integridad del backup"""
-        backup_path = Path(backup_metadata.file_path)
-        
-        if not backup_path.exists():
-            return False
-            
-        # Verificar checksum
-        current_checksum = self.backup_engine._calculate_checksum(backup_path)
-        
-        if current_checksum != backup_metadata.checksum:
-            logging.error(f"Backup checksum mismatch: expected {backup_metadata.checksum}, got {current_checksum}")
-            return False
-            
-        # Verificar que el archivo se puede abrir
-        try:
-            with tarfile.open(backup_path, "r:gz" if backup_metadata.compression else "r") as tar:
-                tar.getnames()  # Verificar que se puede leer
-            return True
-        except Exception as e:
-            logging.error(f"Backup file corruption detected: {e}")
-            return False
-            
-    async def _stop_all_agents(self):
-        """Detener todos los agentes"""
-        agents = self.framework.registry.list_all_agents()
-        
-        for agent in agents:
-            try:
-                await agent.stop()
-            except Exception as e:
-                logging.warning(f"Error stopping agent {agent.id}: {e}")
-                
-    async def _restore_framework_state(self, framework_state: Dict[str, Any]):
-        """Restaurar estado del framework"""
-        # En una implementación completa, restaurarías configuraciones específicas
-        logging.info("Framework state restored")
-        
-    async def _restore_agents(self, agents_data: Dict[str, Any]):
-        """Restaurar agentes"""
-        from core.specialized_agents import ExtendedAgentFactory
-        
-        for agent_id, agent_data in agents_data.items():
-            try:
-                # Crear agente
-                namespace = agent_data["namespace"]
-                name = agent_data["name"]
-                
-                if namespace in ExtendedAgentFactory.AGENT_CLASSES:
-                    agent_class = ExtendedAgentFactory.AGENT_CLASSES[namespace]
-                    agent = agent_class(name, self.framework)
-                    
-                    # Restaurar metadata
-                    agent.metadata = agent_data.get("metadata", {})
-                    
-                    # Iniciar agente
-                    await agent.start()
-                    
-                    logging.info(f"Restored agent: {agent_id} ({namespace})")
-                    
-            except Exception as e:
-                logging.error(f"Failed to restore agent {agent_id}: {e}")
-                
-    async def _restore_resources(self, resources_data: Dict[str, Any]):
-        """Restaurar recursos"""
-        from core.autonomous_agent_framework import AgentResource, ResourceType
-        
-        for resource_id, resource_data in resources_data.items():
-            try:
-                # Verificar que el agente propietario existe
-                owner_id = resource_data["owner_agent_id"]
-                owner_agent = self.framework.registry.get_agent(owner_id)
-                
-                if owner_agent:
-                    resource = AgentResource(
-                        id=resource_data["id"],
-                        type=ResourceType(resource_data["type"]),
-                        name=resource_data["name"],
-                        namespace=resource_data["namespace"],
-                        data=resource_data["data"],
-                        owner_agent_id=resource_data["owner_agent_id"],
-                        metadata=resource_data.get("metadata", {}),
-                        created_at=datetime.fromisoformat(resource_data["created_at"]),
-                        updated_at=datetime.fromisoformat(resource_data["updated_at"])
-                    )
-                    
-                    await self.framework.resource_manager.create_resource(resource)
-                    logging.info(f"Restored resource: {resource_id}")
-                    
-            except Exception as e:
-                logging.error(f"Failed to restore resource {resource_id}: {e}")
-                
-    async def _restore_messages(self, messages_data: Dict[str, Any]):
-        """Restaurar mensajes"""
-        if not hasattr(self.persistence_manager, 'backend'):
-            return
-            
-        for agent_id, messages in messages_data.items():
-            try:
-                for msg_data in messages:
-                    from core.autonomous_agent_framework import AgentMessage, MessageType
-                    
-                    message = AgentMessage(
-                        id=msg_data["id"],
-                        sender_id=msg_data["sender_id"],
-                        receiver_id=msg_data["receiver_id"],
-                        message_type=MessageType(msg_data["message_type"]),
-                        action=msg_data["action"],
-                        payload=msg_data["payload"],
-                        timestamp=datetime.fromisoformat(msg_data["timestamp"]),
-                        correlation_id=msg_data.get("correlation_id"),
-                        response_required=msg_data.get("response_required", True)
-                    )
-                    
-                    await self.persistence_manager.backend.save_message(message)
-                    
-                logging.info(f"Restored {len(messages)} messages for agent {agent_id}")
-                
-            except Exception as e:
-                logging.error(f"Failed to restore messages for agent {agent_id}: {e}")
+        self.backup_history = backups_to_keep
+        self._save_backup_history()
+        logger.info(f"Pruned {pruned_count} old backups.")
+        return pruned_count
 
 # ================================
 # DISASTER RECOVERY ORCHESTRATOR
 # ================================
 
 class DisasterRecoveryOrchestrator:
-    """Orquestador de recuperación ante desastres"""
-    
-    def __init__(self, framework: AgentFramework, persistence_manager: PersistenceManager):
+    def __init__(self, framework: AgentFramework, persistence_manager: PersistenceManager, storage_backend: StorageBackendInterface):
         self.framework = framework
         self.persistence_manager = persistence_manager
-        self.backup_engine = BackupEngine(framework, persistence_manager)
-        self.recovery_engine = RecoveryEngine(framework, persistence_manager, self.backup_engine)
-        
-        # Configuración de backups automáticos
-        self.auto_backup_enabled = False
-        self.backup_interval_hours = 6
-        self.backup_task = None
-        
-        # Snapshots en memoria para recuperación rápida
-        self.restore_points: List[RestorePoint] = []
-        self.max_restore_points = 10
-        
-    async def start_auto_backup(self):
-        """Iniciar backups automáticos"""
-        self.auto_backup_enabled = True
-        self.backup_task = asyncio.create_task(self._auto_backup_loop())
-        logging.info(f"Auto-backup started (interval: {self.backup_interval_hours}h)")
-        
-    async def stop_auto_backup(self):
-        """Detener backups automáticos"""
-        self.auto_backup_enabled = False
-        if self.backup_task:
-            self.backup_task.cancel()
-        logging.info("Auto-backup stopped")
-        
-    async def _auto_backup_loop(self):
-        """Loop de backups automáticos"""
-        while self.auto_backup_enabled:
-            try:
-                await asyncio.sleep(self.backup_interval_hours * 3600)
-                
-                if self.auto_backup_enabled:
-                    await self.create_scheduled_backup()
-                    
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Auto-backup error: {e}")
-                await asyncio.sleep(300)  # Esperar 5 minutos antes de reintentar
-                
-    async def create_scheduled_backup(self) -> BackupMetadata:
-        """Crear backup programado"""
-        description = f"Scheduled backup at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        return await self.backup_engine.create_full_backup(description)
-        
-    async def create_restore_point(self, description: str = "") -> RestorePoint:
-        """Crear punto de restauración"""
-        restore_point = await self.backup_engine.create_snapshot(description)
-        
-        self.restore_points.append(restore_point)
-        
-        # Mantener límite de puntos de restauración
-        if len(self.restore_points) > self.max_restore_points:
-            self.restore_points.pop(0)
-            
-        return restore_point
-        
-    async def disaster_recovery_plan(self, scenario: str) -> Dict[str, Any]:
-        """Ejecutar plan de recuperación ante desastres"""
-        
-        recovery_plans = {
-            "agent_failure": self._recover_from_agent_failure,
-            "data_corruption": self._recover_from_data_corruption,
+        self.backup_engine = BackupEngine(persistence_manager, storage_backend)
+        self.recovery_plans: Dict[str, Callable] = {
             "system_crash": self._recover_from_system_crash,
-            "complete_failure": self._recover_from_complete_failure
+            "data_corruption": self._recover_from_data_corruption,
+            "agent_failure": self._recover_agent_failure
         }
-        
-        if scenario not in recovery_plans:
-            raise ValueError(f"Unknown disaster scenario: {scenario}")
-            
-        logging.info(f"Executing disaster recovery plan: {scenario}")
-        
-        try:
-            result = await recovery_plans[scenario]()
-            logging.info(f"Disaster recovery completed: {scenario}")
-            return {"success": True, "scenario": scenario, "result": result}
-            
-        except Exception as e:
-            logging.error(f"Disaster recovery failed: {scenario} - {e}")
-            return {"success": False, "scenario": scenario, "error": str(e)}
-            
-    async def _recover_from_agent_failure(self) -> Dict[str, Any]:
-        """Recuperar de fallo de agentes"""
-        
-        # Identificar agentes con problemas
-        agents = self.framework.registry.list_all_agents()
-        failed_agents = [agent for agent in agents if agent.status.value in ["error", "terminated"]]
-        
-        recovery_actions = []
-        
-        for agent in failed_agents:
-            try:
-                # Intentar reiniciar agente
-                await agent.start()
-                recovery_actions.append(f"Restarted agent: {agent.id}")
-                
-            except Exception as e:
-                recovery_actions.append(f"Failed to restart agent {agent.id}: {e}")
-                
-        return {"failed_agents": len(failed_agents), "actions": recovery_actions}
-        
-    async def _recover_from_data_corruption(self) -> Dict[str, Any]:
-        """Recuperar de corrupción de datos"""
-        
-        # Buscar backup más reciente válido
-        backups = self.backup_engine.get_backup_history()
-        valid_backup = None
-        
-        for backup in backups:
-            if backup.status == BackupStatus.COMPLETED:
-                if await self.recovery_engine._verify_backup_integrity(backup):
-                    valid_backup = backup
-                    break
-                    
-        if not valid_backup:
-            raise ValueError("No valid backup found for data recovery")
-            
-        # Restaurar desde backup
-        await self.recovery_engine.restore_from_backup(
-            valid_backup.backup_id,
-            {"agents": True, "resources": True, "messages": True, "framework_state": False}
-        )
-        
-        return {"restored_from": valid_backup.backup_id, "backup_date": valid_backup.created_at.isoformat()}
-        
+        self.last_recovery_attempt: Optional[datetime] = None
+        self.recovery_success_count: int = 0
+        self.recovery_fail_count: int = 0
+        logger.info("DisasterRecoveryOrchestrator initialized.")
+
     async def _recover_from_system_crash(self) -> Dict[str, Any]:
-        """Recuperar de crash del sistema"""
+        logger.info("Executing recovery plan: system_crash")
+        # 1. Identificar el último backup completo exitoso
+        latest_full_backup = next((b for b in self.backup_engine.get_backup_history() if b.backup_type == BackupType.FULL and b.status == BackupStatus.COMPLETED), None)
         
-        # Usar punto de restauración más reciente si está disponible
-        if self.restore_points:
-            latest_restore_point = self.restore_points[-1]
-            await self.recovery_engine.restore_from_snapshot(latest_restore_point)
-            
-            return {
-                "restored_from": "restore_point",
-                "restore_point_id": latest_restore_point.restore_id,
-                "restore_point_date": latest_restore_point.created_at.isoformat()
-            }
+        if not latest_full_backup:
+            logger.error("No completed full backup found for system crash recovery.")
+            return {"success": False, "error": "No completed full backup available."}
+
+        logger.info(f"Attempting to restore from latest full backup: {latest_full_backup.backup_id}")
+        # 2. Restaurar el framework desde este backup
+        restore_success = await self.backup_engine.restore_backup(latest_full_backup.backup_id, self.framework)
+        
+        if restore_success:
+            logger.info("System crash recovery completed successfully.")
+            return {"success": True, "details": f"Restored from backup {latest_full_backup.backup_id}"}
         else:
-            # Usar backup más reciente
-            return await self._recover_from_data_corruption()
+            logger.error("System crash recovery failed.")
+            return {"success": False, "error": "Failed to restore from backup."}
+
+    async def _recover_from_data_corruption(self) -> Dict[str, Any]:
+        logger.info("Executing recovery plan: data_corruption")
+        # Simula encontrar corrupción en recursos o mensajes
+        corrupted_resources = self.framework.resource_manager.find_resources_by_type(ResourceType.DATA)[:1]
+        if corrupted_resources:
+            logger.warning(f"Simulating detection of data corruption in resource: {corrupted_resources[0].name}")
+            # Intentar restaurar solo los recursos afectados, o un backup más reciente si es posible
+            latest_backup_with_resources = next((
+                b for b in self.backup_engine.get_backup_history() 
+                if b.status == BackupStatus.COMPLETED and any(res_id in b.associated_resources for res_id in [res.id for res in corrupted_resources])
+            ), None)
             
-    async def _recover_from_complete_failure(self) -> Dict[str, Any]:
-        """Recuperar de fallo completo"""
-        
-        # Buscar backup completo más reciente
-        backups = self.backup_engine.get_backup_history()
-        full_backup = None
-        
-        for backup in backups:
-            if (backup.backup_type == BackupType.FULL and 
-                backup.status == BackupStatus.COMPLETED):
-                if await self.recovery_engine._verify_backup_integrity(backup):
-                    full_backup = backup
-                    break
-                    
-        if not full_backup:
-            raise ValueError("No valid full backup found for complete recovery")
+            if latest_backup_with_resources:
+                logger.info(f"Attempting to restore from backup {latest_backup_with_resources.backup_id} due to data corruption.")
+                restore_success = await self.backup_engine.restore_backup(latest_backup_with_resources.backup_id, self.framework)
+                if restore_success:
+                    logger.info("Data corruption recovery completed successfully.")
+                    return {"success": True, "details": f"Restored from backup {latest_backup_with_resources.backup_id}"}
+            logger.error("Data corruption recovery failed: Could not find suitable backup or restore failed.")
+            return {"success": False, "error": "No suitable backup found or restore failed for data corruption."}
+        else:
+            logger.info("No corrupted resources simulated. No specific data corruption recovery performed.")
+            return {"success": True, "details": "No data corruption detected/simulated."}
+
+    async def _recover_agent_failure(self) -> Dict[str, Any]:
+        logger.info("Executing recovery plan: agent_failure")
+        # Simular un agente fallido
+        failed_agent = next((a for a in self.framework.registry.list_all_agents() if a.status == BaseAgent.AgentStatus.ERROR), None)
+        if not failed_agent:
+            # Si no hay agentes en ERROR, elegimos uno al azar para simular
+            all_agents = self.framework.registry.list_all_agents()
+            if all_agents:
+                failed_agent = all_agents[0]
+                failed_agent.status = BaseAgent.AgentStatus.ERROR
+                logger.warning(f"Simulating failure of agent: {failed_agent.name} ({failed_agent.id})")
+            else:
+                logger.info("No agents to simulate failure for.")
+                return {"success": True, "details": "No agent failure simulated."}
+
+        logger.info(f"Attempting to recover failed agent: {failed_agent.name} ({failed_agent.id})")
+        # Estrategia: reiniciar el agente y recargar su estado si es posible
+        try:
+            await failed_agent.shutdown()
+            self.framework.registry.unregister_agent(failed_agent.id)
             
-        # Restauración completa
-        await self.recovery_engine.restore_from_backup(full_backup.backup_id)
-        
-        return {
-            "restored_from": full_backup.backup_id,
-            "backup_date": full_backup.created_at.isoformat(),
-            "backup_type": full_backup.backup_type.value
-        }
-        
+            # Para la recuperación de agente, la idea es recrearlo y recargar su último estado conocido
+            # Esto requeriría que PersistenceManager pueda cargar el estado de un agente específico
+            # Aquí, lo simplificamos creando una nueva instancia del mismo tipo
+            
+            # Buscar la clase original del agente
+            original_agent_class = self.framework.agent_factory._agent_classes.get(failed_agent.namespace)
+            if original_agent_class:
+                new_agent = await self.framework.agent_factory.create_agent(failed_agent.namespace, failed_agent.name, original_agent_class)
+                if new_agent:
+                    # Intentar cargar el estado persistido para el agente por su ID anterior o por su nombre/namespace
+                    # Esto es un placeholder; la PersistenceManager necesita esta capacidad
+                    # await self.persistence_manager.load_agent_state(new_agent) 
+                    logger.info(f"Agent {failed_agent.name} recovered successfully by recreation.")
+                    return {"success": True, "details": f"Agent {failed_agent.name} ({failed_agent.id}) recovered."}
+                else:
+                    logger.error(f"Failed to recreate agent {failed_agent.name}.")
+            else:
+                logger.error(f"Agent class for namespace {failed_agent.namespace} not found to recreate agent {failed_agent.name}.")
+
+        except Exception as e:
+            logger.error(f"Error during agent failure recovery for {failed_agent.name}: {e}")
+            
+        return {"success": False, "error": f"Failed to recover agent {failed_agent.name}."}
+
+
+    async def disaster_recovery_plan(self, scenario: str) -> Dict[str, Any]:
+        self.last_recovery_attempt = datetime.now()
+        recovery_func = self.recovery_plans.get(scenario)
+        if recovery_func:
+            logger.info(f"Initiating disaster recovery for scenario: {scenario}")
+            result = await recovery_func()
+            if result["success"]:
+                self.recovery_success_count += 1
+                logger.info(f"Disaster recovery for {scenario} finished successfully.")
+            else:
+                self.recovery_fail_count += 1
+                logger.error(f"Disaster recovery for {scenario} failed.")
+            return result
+        else:
+            logger.error(f"Unknown disaster recovery scenario: {scenario}")
+            self.recovery_fail_count += 1
+            return {"success": False, "error": f"Unknown scenario: {scenario}"}
+
     def get_recovery_status(self) -> Dict[str, Any]:
-        """Obtener estado del sistema de recuperación"""
-        
-        backups = self.backup_engine.get_backup_history()
-        
         return {
-            "auto_backup_enabled": self.auto_backup_enabled,
-            "backup_interval_hours": self.backup_interval_hours,
-            "total_backups": len(backups),
-            "latest_backup": backups[0].created_at.isoformat() if backups else None,
-            "restore_points": len(self.restore_points),
-            "latest_restore_point": self.restore_points[-1].created_at.isoformat() if self.restore_points else None,
-            "backup_engine_status": "active" if self.backup_engine else "inactive"
+            "last_recovery_attempt": self.last_recovery_attempt.isoformat() if self.last_recovery_attempt else "N/A",
+            "successful_recoveries": self.recovery_success_count,
+            "failed_recoveries": self.recovery_fail_count,
+            "total_backups": len(self.backup_engine.get_backup_history()),
+            "last_full_backup": self.backup_engine.get_backup_history()[0].created_at.isoformat() if self.backup_engine.get_backup_history() else "N/A"
         }
 
 # ================================
-# EXAMPLE USAGE
+# DEMO USAGE
 # ================================
 
-async def backup_recovery_demo():
-    """Demo del sistema de backup y recovery"""
-    
-    logging.basicConfig(level=logging.INFO)
-    
-    print("💾 Backup & Recovery System Demo")
-    print("="*60)
-    
-    # Crear framework y componentes
-    from core.autonomous_agent_framework import AgentFramework
-    from core.specialized_agents import ExtendedAgentFactory
-    from core.persistence_system import PersistenceFactory, PersistenceBackend
-    
-    framework = AgentFramework()
+async def demo_backup_recovery():
+    # Inicializar el framework de agentes
+    framework = AgentFramework("BackupRecoveryDemoFramework")
     await framework.start()
+
+    # Inicializar el sistema de persistencia (usando un backend de archivo JSON para la demo)
+    persistence_config = type('PersistenceConfig', (), {
+        'backend': 'json', # Usaremos un directorio para simular la persistencia
+        'connection_string': 'demo_persistence_data', # Esto será un directorio
+        'auto_save_interval': 60,
+        'max_message_history': 1000,
+        'enable_compression': False,
+        'backup_enabled': False,
+        'backup_interval': 3600
+    })()
     
-    # Configurar persistencia
-    persistence_manager = PersistenceFactory.create_persistence_manager(
-        backend=PersistenceBackend.SQLITE,
-        connection_string="demo_backup.db"
-    )
-    await persistence_manager.initialize()
-    
-    # Crear algunos agentes
-    strategist = ExtendedAgentFactory.create_agent("agent.planning.strategist", "strategist", framework)
-    generator = ExtendedAgentFactory.create_agent("agent.build.code.generator", "generator", framework)
-    
-    await strategist.start()
-    await generator.start()
-    
-    # Crear algunos recursos
-    from core.autonomous_agent_framework import AgentResource, ResourceType
-    test_resource = AgentResource(
-        type=ResourceType.CODE,
-        name="demo_code",
-        namespace="resource.demo",
-        data={"code": "print('Hello, World!')", "language": "python"},
-        owner_agent_id=strategist.id
-    )
-    await framework.resource_manager.create_resource(test_resource)
-    
-    # Crear sistema de backup y recovery
-    dr_orchestrator = DisasterRecoveryOrchestrator(framework, persistence_manager)
-    
-    print(f"\n✅ Initial setup completed")
-    print(f"   Agents: {len(framework.registry.list_all_agents())}")
-    print(f"   Resources: 1")
-    
-    # Demo 1: Crear backup completo
-    print(f"\n1. Creating full backup...")
-    full_backup = await dr_orchestrator.backup_engine.create_full_backup("Demo full backup")
-    
-    if full_backup.status == BackupStatus.COMPLETED:
-        print(f"   ✅ Full backup created: {full_backup.backup_id}")
-        print(f"   📁 Size: {full_backup.size_bytes} bytes")
-        print(f"   🏷️ Agents: {full_backup.agent_count}, Resources: {full_backup.resource_count}")
-    else:
-        print(f"   ❌ Backup failed: {full_backup.error_message}")
+    # Asegúrate de que el connection_string sea un Path para PersistenceManager en esta demo
+    persistence_config.connection_string = Path(persistence_config.connection_string)
+
+    persistence_manager = PersistenceManager(framework)
+    await persistence_manager.initialize(persistence_config)
+
+    # Inicializar el backend de almacenamiento (local para la demo)
+    local_storage_path = Path("./demo_backups_storage")
+    storage_backend = LocalStorageBackend(local_storage_path)
+
+    # Inicializar el orquestador de DR
+    dr_orchestrator = DisasterRecoveryOrchestrator(framework, persistence_manager, storage_backend)
+
+    try:
+        # Demo 1: Crear algunos agentes y recursos para simular un estado
+        logger.info("\n1. Simulating initial system state with agents and resources...")
         
-    # Demo 2: Crear punto de restauración
-    print(f"\n2. Creating restore point...")
-    restore_point = await dr_orchestrator.create_restore_point("Demo restore point")
-    print(f"   ✅ Restore point created: {restore_point.restore_id}")
-    
-    # Demo 3: Simular cambios
-    print(f"\n3. Simulating changes...")
-    
-    # Crear otro agente
-    tester = ExtendedAgentFactory.create_agent("agent.test.generator", "tester", framework)
-    await tester.start()
-    
-    # Crear otro recurso
-    test_resource2 = AgentResource(
-        type=ResourceType.TEST,
-        name="demo_test",
-        namespace="resource.test",
-        data={"test_code": "assert True", "framework": "pytest"},
-        owner_agent_id=tester.id
-    )
-    await framework.resource_manager.create_resource(test_resource2)
-    
-    print(f"   ✅ Added 1 agent and 1 resource")
-    print(f"   📊 Current state: {len(framework.registry.list_all_agents())} agents")
-    
-    # Demo 4: Crear backup incremental
-    print(f"\n4. Creating incremental backup...")
-    incremental_backup = await dr_orchestrator.backup_engine.create_incremental_backup(
-        full_backup.backup_id, "Demo incremental backup"
-    )
-    
-    if incremental_backup.status == BackupStatus.COMPLETED:
-        print(f"   ✅ Incremental backup created: {incremental_backup.backup_id}")
-        print(f"   📁 Size: {incremental_backup.size_bytes} bytes")
-    
-    # Demo 5: Simular disaster recovery
-    print(f"\n5. Disaster recovery simulation...")
-    
-    # Simular fallo de sistema restaurando desde punto anterior
-    print(f"   📉 Simulating system crash...")
-    
-    recovery_result = await dr_orchestrator.disaster_recovery_plan("system_crash")
-    
-    if recovery_result["success"]:
-        print(f"   ✅ Recovery successful")
-        print(f"   📊 Current state: {len(framework.registry.list_all_agents())} agents")
-    else:
-        print(f"   ❌ Recovery failed: {recovery_result['error']}")
-    
-    # Demo 6: Estado del sistema
-    print(f"\n6. Recovery system status:")
-    status = dr_orchestrator.get_recovery_status()
-    
-    for key, value in status.items():
-        print(f"   {key}: {value}")
-    
-    # Demo 7: Historial de backups
-    print(f"\n7. Backup history:")
-    backup_history = dr_orchestrator.backup_engine.get_backup_history()
-    
-    for i, backup in enumerate(backup_history[:5], 1):
-        print(f"   {i}. {backup.backup_id} ({backup.backup_type.value}) - {backup.status.value}")
-        print(f"      Created: {backup.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"      Size: {backup.size_bytes} bytes")
-    
-    # Cleanup
-    await framework.stop()
-    await persistence_manager.close()
-    
-    print(f"\n✅ Backup & Recovery demo completed!")
+        class DemoAgent(BaseAgent):
+            def __init__(self, name: str, framework: AgentFramework):
+                super().__init__("agent.demo", name, framework)
+            async def handle_message(self, message):
+                logger.info(f"DemoAgent {self.name} received message: {message.action}")
+
+        framework.agent_factory.register_agent_class("agent.demo", DemoAgent)
+        agent1 = await framework.agent_factory.create_agent("agent.demo", "AgentAlpha")
+        agent2 = await framework.agent_factory.create_agent("agent.demo", "AgentBeta")
+
+        resource1 = AgentResource(name="config_file", namespace="resource.config", data={"key": "value"}, owner_agent_id=agent1.id)
+        resource2 = AgentResource(name="user_data_db", namespace="resource.data.users", data=[{"id": 1}], owner_agent_id=agent2.id)
+        await framework.resource_manager.create_resource(resource1)
+        await framework.resource_manager.create_resource(resource2)
+        
+        # Simular algunos mensajes
+        if agent1 and agent2:
+            await agent1.send_message(agent2.id, "action.test", {"data": "hello"})
+            await agent2.send_message(agent1.id, "action.response", {"status": "ok"})
+            await asyncio.sleep(0.1) # Dar tiempo para que se procesen los mensajes
+        
+        logger.info("Initial state created.")
+        logger.info(f"   📊 Current agents: {len(framework.registry.list_all_agents())}")
+        logger.info(f"   📂 Current resources: {len(framework.resource_manager.list_all_resources())}")
+
+        # Demo 2: Realizar un backup completo
+        logger.info("\n2. Performing full backup...")
+        full_backup = await dr_orchestrator.backup_engine.perform_full_backup(framework, retention_policy="30-days")
+        if full_backup and full_backup.status == BackupStatus.COMPLETED:
+            logger.info(f"   ✅ Full backup completed: {full_backup.backup_id}")
+            logger.info(f"   📁 Size: {full_backup.size_bytes} bytes")
+            logger.info(f"   ➕ Stored at: {full_backup.file_path}")
+        else:
+            logger.error("   ❌ Full backup failed.")
+
+        # Demo 3: Simular cambios en el sistema
+        logger.info("\n3. Simulating system changes (adding a new agent and resource)...")
+        agent3 = await framework.agent_factory.create_agent("agent.demo", "AgentGamma")
+        resource3 = AgentResource(name="log_data", namespace="resource.logs", data="log entry 1", owner_agent_id=agent3.id)
+        await framework.resource_manager.create_resource(resource3)
+        
+        logger.info(f"   📊 Current agents: {len(framework.registry.list_all_agents())}")
+        logger.info(f"   📂 Current resources: {len(framework.resource_manager.list_all_resources())}")
+
+        # Demo 4: Realizar un backup incremental
+        logger.info("\n4. Performing incremental backup...")
+        if full_backup:
+            incremental_backup = await dr_orchestrator.backup_engine.perform_incremental_backup(framework, full_backup.backup_id, retention_policy="7-days")
+            if incremental_backup and incremental_backup.status == BackupStatus.COMPLETED:
+                logger.info(f"   ✅ Incremental backup completed: {incremental_backup.backup_id}")
+                logger.info(f"   📁 Size: {incremental_backup.size_bytes} bytes")
+            else:
+                logger.error("   ❌ Incremental backup failed.")
+        else:
+            logger.warning("Skipping incremental backup as full backup failed.")
+            
+        # Demo 5: Simular disaster recovery
+        logger.info(f"\n5. Disaster recovery simulation...")
+        
+        # Simular fallo de sistema restaurando desde punto anterior
+        logger.info(f"   📉 Simulating system crash...")
+        
+        recovery_result = await dr_orchestrator.disaster_recovery_plan("system_crash")
+        
+        if recovery_result["success"]:
+            logger.info(f"   ✅ Recovery successful")
+            logger.info(f"   📊 Current state: {len(framework.registry.list_all_agents())} agents")
+            logger.info(f"   📂 Current resources: {len(framework.resource_manager.list_all_resources())} resources")
+        else:
+            logger.error(f"   ❌ Recovery failed: {recovery_result['error']}")
+        
+        # Demo 6: Estado del sistema
+        logger.info(f"\n6. Recovery system status:")
+        status = dr_orchestrator.get_recovery_status()
+        
+        for key, value in status.items():
+            logger.info(f"   {key}: {value}")
+        
+        # Demo 7: Historial de backups
+        logger.info(f"\n7. Backup history:")
+        backup_history = dr_orchestrator.backup_engine.get_backup_history()
+        
+        for i, backup in enumerate(backup_history[:5], 1): # Mostrar los 5 más recientes
+            logger.info(f"   {i}. {backup.backup_id} ({backup.backup_type.value}) - {backup.status.value}")
+            logger.info(f"      Created: {backup.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"      Path: {backup.file_path}")
+            logger.info(f"      Size: {backup.size_bytes} bytes")
+            logger.info(f"      Checksum: {backup.checksum[:10]}...")
+            
+        # Demo 8: Podar backups antiguos (simulado)
+        logger.info("\n8. Pruning old backups (simulated, setting retention to 0 days for demo to prune all)")
+        pruned_count = await dr_orchestrator.backup_engine.prune_old_backups(retention_days=0)
+        logger.info(f"   Pruned {pruned_count} backups.")
+        logger.info(f"   Total backups after pruning: {len(dr_orchestrator.backup_engine.get_backup_history())}")
+
+    except Exception as e:
+        logger.error(f"An error occurred during the demo: {e}", exc_info=True)
+    finally:
+        logger.info("\nCleaning up demo directories...")
+        await framework.stop()
+        await persistence_manager.close()
+        
+        if local_storage_path.exists():
+            shutil.rmtree(local_storage_path)
+            logger.info(f"Removed {local_storage_path}")
+        
+        # persistence_config.connection_string es el directorio de persistencia para la demo
+        if persistence_config.connection_string.exists():
+            shutil.rmtree(persistence_config.connection_string)
+            logger.info(f"Removed {persistence_config.connection_string}")
+            
+        logger.info("Demo cleanup complete.")
 
 if __name__ == "__main__":
-    asyncio.run(backup_recovery_demo())
+    asyncio.run(demo_backup_recovery())

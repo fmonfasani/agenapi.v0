@@ -1,64 +1,63 @@
-"""
-web_dashboard.py - Dashboard web para monitoreo del framework de agentes
-"""
+# web_dashboard.py - Dashboard web para monitoreo del framework de agentes
 
 import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from pathlib import Path
+
 import aiohttp
 from aiohttp import web, WSMsgType
 import aiohttp_cors
-import weakref
 
-from core.autonomous_agent_framework import AgentFramework, BaseAgent, AgentStatus, MessageType
+from core.autonomous_agent_framework import AgentFramework, AgentStatus
 from systems.framework_config_utils import MetricsCollector
 
-# ================================
-# DASHBOARD SERVER
-# ================================
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Constants for Dashboard Server
+DEFAULT_HOST = "localhost"
+DEFAULT_PORT = 8080
+DASHBOARD_STATIC_DIR = "dashboard_static"
+MONITORING_INTERVAL_SECONDS = 10
+WEBSOCKET_RECONNECT_SECONDS = 5
+MAX_LOG_ENTRIES = 10
 
 class DashboardServer:
-    """Servidor web para el dashboard de monitoreo"""
-    
-    def __init__(self, framework: AgentFramework, host: str = "localhost", port: int = 8080):
+    """
+    Web server for the agent framework monitoring dashboard.
+
+    This server provides REST API endpoints for agent status, messages, resources,
+    and metrics, as well as a WebSocket for real-time updates.
+    It serves a static HTML dashboard interface.
+    """
+
+    def __init__(self, framework: AgentFramework, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
+        """
+        Initializes the DashboardServer.
+
+        Args:
+            framework: The AgentFramework instance to monitor.
+            host: The host address for the web server.
+            port: The port for the web server.
+        """
         self.framework = framework
         self.host = host
         self.port = port
         self.app = web.Application()
         self.websockets: List[web.WebSocketResponse] = []
         self.metrics_collector = MetricsCollector(framework)
-        self.dashboard_data = {
-            "agents": {},
-            "messages": [],
-            "resources": {},
-            "metrics": {},
-            "system_status": "active"
-        }
         
-        # Configurar rutas
         self._setup_routes()
-        
-        # Configurar CORS
-        cors = aiohttp_cors.setup(self.app, defaults={
-            "*": aiohttp_cors.ResourceOptions(
-                allow_credentials=True,
-                expose_headers="*",
-                allow_headers="*",
-                allow_methods="*"
-            )
-        })
-        
-        # Aplicar CORS a todas las rutas
-        for route in list(self.app.router.routes()):
-            cors.add(route)
-            
+        self._setup_cors()
+        logging.info("DashboardServer initialized.")
+
     def _setup_routes(self):
-        """Configurar rutas del servidor"""
-        
-        # Rutas de API
+        """Configures the server's API and static file routes."""
+        logging.info("Setting up server routes.")
+        # API Routes
         self.app.router.add_get("/api/status", self.get_status)
         self.app.router.add_get("/api/agents", self.get_agents)
         self.app.router.add_get("/api/agents/{agent_id}", self.get_agent_detail)
@@ -67,15 +66,36 @@ class DashboardServer:
         self.app.router.add_get("/api/resources", self.get_resources)
         self.app.router.add_get("/api/metrics", self.get_metrics)
         
-        # WebSocket para actualizaciones en tiempo real
+        # WebSocket for real-time updates
         self.app.router.add_get("/ws", self.websocket_handler)
         
-        # Archivos estáticos (HTML, CSS, JS)
-        self.app.router.add_get("/", self.index)
-        self.app.router.add_static("/static/", path="dashboard_static/", name="static")
-        
-    async def get_status(self, request):
-        """Obtener estado general del framework"""
+        # Static files (HTML, CSS, JS)
+        static_path = Path(DASHBOARD_STATIC_DIR)
+        if not static_path.is_dir():
+            logging.warning(f"Static directory '{DASHBOARD_STATIC_DIR}' not found. Dashboard HTML will not be served.")
+            # Fallback for index if static dir is missing, though better to raise error or ensure dir exists
+            self.app.router.add_get("/", self.index_fallback)
+        else:
+            self.app.router.add_get("/", self.index)
+            self.app.router.add_static("/static/", path=static_path, name="static")
+            logging.info(f"Serving static files from: {static_path.resolve()}")
+
+    def _setup_cors(self):
+        """Configures CORS for the application."""
+        logging.info("Setting up CORS policies.")
+        cors = aiohttp_cors.setup(self.app, defaults={
+            "*": aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*",
+                allow_methods="*"
+            )
+        })
+        for route in list(self.app.router.routes()):
+            cors.add(route)
+
+    async def get_status(self, request: web.Request) -> web.Response:
+        """Handles GET /api/status - Returns general framework status."""
         agents = self.framework.registry.list_all_agents()
         
         status_data = {
@@ -87,11 +107,11 @@ class DashboardServer:
             "uptime": str(datetime.now() - datetime.now().replace(hour=0, minute=0, second=0)),
             "timestamp": datetime.now().isoformat()
         }
-        
+        logging.debug(f"Status requested: {status_data}")
         return web.json_response(status_data)
         
-    async def get_agents(self, request):
-        """Obtener lista de todos los agentes"""
+    async def get_agents(self, request: web.Request) -> web.Response:
+        """Handles GET /api/agents - Returns a list of all agents."""
         agents = self.framework.registry.list_all_agents()
         
         agents_data = []
@@ -107,22 +127,23 @@ class DashboardServer:
                 "metadata": agent.metadata
             }
             agents_data.append(agent_info)
-            
+        
+        logging.debug(f"Agents list requested: {len(agents_data)} agents.")
         return web.json_response({"agents": agents_data})
         
-    async def get_agent_detail(self, request):
-        """Obtener detalles de un agente específico"""
+    async def get_agent_detail(self, request: web.Request) -> web.Response:
+        """Handles GET /api/agents/{agent_id} - Returns details for a specific agent."""
         agent_id = request.match_info["agent_id"]
         agent = self.framework.registry.get_agent(agent_id)
         
         if not agent:
+            logging.warning(f"Agent detail requested for non-existent agent: {agent_id}")
             return web.json_response({"error": "Agent not found"}, status=404)
             
-        # Obtener recursos del agente
         agent_resources = self.framework.resource_manager.find_resources_by_owner(agent_id)
         
-        # Obtener mensajes recientes (simulado)
-        recent_messages = []  # En una implementación real, obtendrías del sistema de persistencia
+        # In a real implementation, you would fetch recent messages from a persistence layer.
+        recent_messages = [] 
         
         agent_detail = {
             "id": agent.id,
@@ -154,15 +175,16 @@ class DashboardServer:
             ],
             "recent_messages": recent_messages
         }
-        
+        logging.debug(f"Agent detail requested for {agent_id}.")
         return web.json_response(agent_detail)
         
-    async def execute_agent_action(self, request):
-        """Ejecutar acción en un agente"""
+    async def execute_agent_action(self, request: web.Request) -> web.Response:
+        """Handles POST /api/agents/{agent_id}/action - Executes an action on an agent."""
         agent_id = request.match_info["agent_id"]
         agent = self.framework.registry.get_agent(agent_id)
         
         if not agent:
+            logging.warning(f"Action requested for non-existent agent: {agent_id}")
             return web.json_response({"error": "Agent not found"}, status=404)
             
         try:
@@ -170,10 +192,9 @@ class DashboardServer:
             action = request_data.get("action", "")
             params = request_data.get("params", {})
             
-            # Ejecutar acción
+            logging.info(f"Executing action '{action}' on agent '{agent_id}' with params: {params}")
             result = await agent.execute_action(action, params)
             
-            # Broadcast actualización vía WebSocket
             await self._broadcast_update({
                 "type": "agent_action",
                 "agent_id": agent_id,
@@ -188,17 +209,19 @@ class DashboardServer:
                 "timestamp": datetime.now().isoformat()
             })
             
+        except json.JSONDecodeError:
+            logging.error(f"Invalid JSON in action request for agent {agent_id}")
+            return web.json_response({"error": "Invalid JSON payload", "success": False}, status=400)
         except Exception as e:
+            logging.error(f"Error executing action on agent {agent_id}: {e}", exc_info=True)
             return web.json_response({
                 "error": str(e),
                 "success": False
             }, status=500)
             
-    async def get_messages(self, request):
-        """Obtener mensajes del sistema"""
-        # En una implementación real, obtendrías de persistencia
-        # Por ahora, simulamos algunos mensajes
-        
+    async def get_messages(self, request: web.Request) -> web.Response:
+        """Handles GET /api/messages - Returns system messages."""
+        # In a real implementation, this would retrieve messages from a persistent store.
         messages = [
             {
                 "id": "msg_001",
@@ -217,11 +240,11 @@ class DashboardServer:
                 "status": "completed"
             }
         ]
-        
+        logging.debug(f"Messages requested: {len(messages)} messages.")
         return web.json_response({"messages": messages})
         
-    async def get_resources(self, request):
-        """Obtener recursos del sistema"""
+    async def get_resources(self, request: web.Request) -> web.Response:
+        """Handles GET /api/resources - Returns system resources."""
         all_resources = []
         agents = self.framework.registry.list_all_agents()
         
@@ -240,13 +263,13 @@ class DashboardServer:
                 }
                 all_resources.append(resource_info)
                 
+        logging.debug(f"Resources requested: {len(all_resources)} resources.")
         return web.json_response({"resources": all_resources})
         
-    async def get_metrics(self, request):
-        """Obtener métricas del sistema"""
+    async def get_metrics(self, request: web.Request) -> web.Response:
+        """Handles GET /api/metrics - Returns system metrics."""
         metrics = self.metrics_collector.get_metrics()
         
-        # Añadir métricas adicionales
         agents = self.framework.registry.list_all_agents()
         status_counts = {}
         for agent in agents:
@@ -254,80 +277,93 @@ class DashboardServer:
             status_counts[status] = status_counts.get(status, 0) + 1
             
         metrics["agent_status_distribution"] = status_counts
+        # This uptime calculation is reset daily, consider a more robust uptime tracking.
         metrics["framework_uptime"] = str(datetime.now() - datetime.now().replace(hour=0, minute=0, second=0))
         
+        logging.debug("Metrics requested.")
         return web.json_response(metrics)
         
-    async def websocket_handler(self, request):
-        """Manejar conexiones WebSocket"""
+    async def websocket_handler(self, request: web.Request) -> web.WebSocketResponse:
+        """Handles WebSocket connections for real-time updates."""
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         
         self.websockets.append(ws)
-        logging.info(f"WebSocket connected: {len(self.websockets)} total connections")
+        logging.info(f"WebSocket connected from {request.remote}. Total connections: {len(self.websockets)}")
         
         try:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
-                    # Manejar mensajes del cliente
                     try:
                         data = json.loads(msg.data)
                         await self._handle_websocket_message(ws, data)
                     except json.JSONDecodeError:
-                        await ws.send_str(json.dumps({"error": "Invalid JSON"}))
+                        logging.warning(f"Received invalid JSON over WebSocket: {msg.data}")
+                        await ws.send_str(json.dumps({"error": "Invalid JSON format"}))
                 elif msg.type == WSMsgType.ERROR:
-                    logging.error(f"WebSocket error: {ws.exception()}")
+                    logging.error(f"WebSocket connection error: {ws.exception()}")
+                    break
+                elif msg.type == WSMsgType.CLOSE:
+                    logging.info(f"WebSocket connection closed by client: {request.remote}")
                     break
         except Exception as e:
-            logging.error(f"WebSocket handler error: {e}")
+            logging.error(f"WebSocket handler unexpected error: {e}", exc_info=True)
         finally:
+            # Clean up disconnected WebSocket
             if ws in self.websockets:
                 self.websockets.remove(ws)
-                
+                logging.info(f"WebSocket disconnected from {request.remote}. Remaining connections: {len(self.websockets)}")
+            await ws.close() # Ensure WebSocket is properly closed
+            
         return ws
         
     async def _handle_websocket_message(self, ws: web.WebSocketResponse, data: Dict[str, Any]):
-        """Manejar mensajes del WebSocket"""
+        """Processes messages received from a WebSocket client."""
         message_type = data.get("type", "")
         
         if message_type == "subscribe":
-            # Cliente se suscribe a actualizaciones
             await ws.send_str(json.dumps({
                 "type": "subscription_confirmed",
                 "timestamp": datetime.now().isoformat()
             }))
+            logging.debug("WebSocket client subscribed to updates.")
             
         elif message_type == "get_status":
-            # Enviar estado actual
             status = await self._get_current_status()
             await ws.send_str(json.dumps({
                 "type": "status_update",
                 "data": status,
                 "timestamp": datetime.now().isoformat()
             }))
+            logging.debug("Sent current status via WebSocket.")
+        else:
+            logging.warning(f"Unknown WebSocket message type received: {message_type}")
+            await ws.send_str(json.dumps({"error": f"Unknown message type: {message_type}"}))
             
     async def _broadcast_update(self, update_data: Dict[str, Any]):
-        """Enviar actualización a todos los WebSockets conectados"""
+        """Broadcasts an update message to all connected WebSockets."""
         if not self.websockets:
+            logging.debug("No WebSockets connected to broadcast update.")
             return
             
         message = json.dumps(update_data)
-        disconnected = []
+        disconnected_websockets = []
         
         for ws in self.websockets:
             try:
                 await ws.send_str(message)
             except Exception as e:
-                logging.error(f"Failed to send WebSocket message: {e}")
-                disconnected.append(ws)
+                logging.error(f"Failed to send WebSocket message to {ws.close_code}: {e}")
+                disconnected_websockets.append(ws)
                 
-        # Remover conexiones desconectadas
-        for ws in disconnected:
+        # Remove disconnected WebSockets after iteration
+        for ws in disconnected_websockets:
             if ws in self.websockets:
                 self.websockets.remove(ws)
+                logging.info(f"Removed disconnected WebSocket. Remaining: {len(self.websockets)}")
                 
     async def _get_current_status(self) -> Dict[str, Any]:
-        """Obtener estado actual del framework"""
+        """Fetches the current status summary of the framework."""
         agents = self.framework.registry.list_all_agents()
         
         return {
@@ -337,435 +373,70 @@ class DashboardServer:
             "timestamp": datetime.now().isoformat()
         }
         
-    async def index(self, request):
-        """Servir página principal del dashboard"""
-        html_content = self._generate_dashboard_html()
-        return web.Response(text=html_content, content_type="text/html")
-        
-    def _generate_dashboard_html(self) -> str:
-        """Generar HTML del dashboard"""
-        return """
+    async def index(self, request: web.Request) -> web.Response:
+        """Serves the main dashboard HTML page from static files."""
+        index_file_path = Path(DASHBOARD_STATIC_DIR) / "index.html"
+        if not index_file_path.is_file():
+            logging.error(f"Dashboard index.html not found at: {index_file_path}")
+            return web.Response(text="Dashboard HTML not found.", status=500)
+            
+        logging.info(f"Serving dashboard HTML from: {index_file_path}")
+        return web.FileResponse(index_file_path)
+
+    async def index_fallback(self, request: web.Request) -> web.Response:
+        """Fallback for serving index if static directory is not configured."""
+        logging.warning("Serving minimal fallback HTML as static directory is not properly set up.")
+        return web.Response(text="""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agent Framework Dashboard</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .dashboard {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        
-        .header h1 {
-            color: #4a5568;
-            margin-bottom: 10px;
-            font-size: 2.5rem;
-            font-weight: 700;
-        }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-        
-        .status-active { background: #48bb78; }
-        .status-idle { background: #ed8936; }
-        .status-error { background: #f56565; }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .stat-card h3 {
-            color: #4a5568;
-            margin-bottom: 10px;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #2d3748;
-        }
-        
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        
-        .card h2 {
-            color: #4a5568;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-        }
-        
-        .agent-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .agent-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            border-bottom: 1px solid #e2e8f0;
-            transition: background 0.2s ease;
-        }
-        
-        .agent-item:hover {
-            background: rgba(99, 102, 241, 0.1);
-        }
-        
-        .agent-info h4 {
-            color: #2d3748;
-            margin-bottom: 4px;
-        }
-        
-        .agent-namespace {
-            color: #718096;
-            font-size: 0.85rem;
-        }
-        
-        .agent-status {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        
-        .status-active { background: #c6f6d5; color: #22543d; }
-        .status-busy { background: #fed7d7; color: #742a2a; }
-        .status-idle { background: #feebc8; color: #7b341e; }
-        .status-error { background: #fed7d7; color: #742a2a; }
-        
-        .log-entry {
-            padding: 8px;
-            border-left: 3px solid #6366f1;
-            margin-bottom: 8px;
-            background: #f8fafc;
-            border-radius: 0 8px 8px 0;
-        }
-        
-        .log-timestamp {
-            color: #718096;
-            font-size: 0.8rem;
-        }
-        
-        .refresh-btn {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .refresh-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-        }
-        
-        @media (max-width: 768px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-    </style>
+    <title>Agent Framework Dashboard (Fallback)</title>
 </head>
 <body>
-    <div class="dashboard">
-        <div class="header">
-            <h1>🤖 Agent Framework Dashboard</h1>
-            <p>
-                <span class="status-indicator status-active"></span>
-                System Status: <span id="system-status">Active</span> | 
-                Last Update: <span id="last-update">--</span>
-            </p>
-        </div>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Total Agents</h3>
-                <div class="stat-value" id="total-agents">0</div>
-            </div>
-            <div class="stat-card">
-                <h3>Active Agents</h3>
-                <div class="stat-value" id="active-agents">0</div>
-            </div>
-            <div class="stat-card">
-                <h3>Messages Sent</h3>
-                <div class="stat-value" id="messages-sent">0</div>
-            </div>
-            <div class="stat-card">
-                <h3>Resources Created</h3>
-                <div class="stat-value" id="resources-created">0</div>
-            </div>
-        </div>
-        
-        <div class="content-grid">
-            <div class="card">
-                <h2>🤖 Active Agents</h2>
-                <button class="refresh-btn" onclick="refreshAgents()">Refresh</button>
-                <div class="agent-list" id="agent-list">
-                    <!-- Agents will be loaded here -->
-                </div>
-            </div>
-            
-            <div class="card">
-                <h2>📋 Activity Log</h2>
-                <div id="activity-log">
-                    <!-- Activity will be loaded here -->
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <h1>Agent Framework Dashboard</h1>
+    <p>The full dashboard HTML/CSS/JS is expected to be in the 'dashboard_static' directory.</p>
+    <p>Please ensure the 'dashboard_static' directory exists and contains 'index.html'.</p>
+    <p>Current time: <span id="current-time"></span></p>
     <script>
-        let websocket = null;
-        let isConnected = false;
-        
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            initWebSocket();
-            loadInitialData();
-            
-            // Auto refresh every 30 seconds
-            setInterval(loadInitialData, 30000);
-        });
-        
-        function initWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            websocket = new WebSocket(wsUrl);
-            
-            websocket.onopen = function() {
-                isConnected = true;
-                console.log('WebSocket connected');
-                addLogEntry('WebSocket connected', 'info');
-                
-                // Subscribe to updates
-                websocket.send(JSON.stringify({type: 'subscribe'}));
-            };
-            
-            websocket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
-            };
-            
-            websocket.onclose = function() {
-                isConnected = false;
-                console.log('WebSocket disconnected');
-                addLogEntry('WebSocket disconnected', 'warning');
-                
-                // Reconnect after 5 seconds
-                setTimeout(initWebSocket, 5000);
-            };
-            
-            websocket.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                addLogEntry('WebSocket error', 'error');
-            };
-        }
-        
-        function handleWebSocketMessage(data) {
-            switch(data.type) {
-                case 'agent_action':
-                    addLogEntry(`Agent ${data.agent_id} executed ${data.action}`, 'info');
-                    refreshAgents();
-                    break;
-                case 'status_update':
-                    updateStats(data.data);
-                    break;
-                case 'subscription_confirmed':
-                    addLogEntry('Subscribed to real-time updates', 'success');
-                    break;
-            }
-        }
-        
-        async function loadInitialData() {
-            try {
-                // Load agents
-                const agentsResponse = await fetch('/api/agents');
-                const agentsData = await agentsResponse.json();
-                updateAgentsList(agentsData.agents);
-                
-                // Load metrics
-                const metricsResponse = await fetch('/api/metrics');
-                const metricsData = await metricsResponse.json();
-                updateStats(metricsData);
-                
-                // Update timestamp
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-                
-            } catch (error) {
-                console.error('Failed to load data:', error);
-                addLogEntry('Failed to load dashboard data', 'error');
-            }
-        }
-        
-        function updateStats(data) {
-            document.getElementById('total-agents').textContent = data.active_agents || 0;
-            document.getElementById('active-agents').textContent = data.active_agents || 0;
-            document.getElementById('messages-sent').textContent = data.messages_sent || 0;
-            document.getElementById('resources-created').textContent = data.resources_created || 0;
-        }
-        
-        function updateAgentsList(agents) {
-            const agentList = document.getElementById('agent-list');
-            agentList.innerHTML = '';
-            
-            if (agents.length === 0) {
-                agentList.innerHTML = '<p>No agents currently active</p>';
-                return;
-            }
-            
-            agents.forEach(agent => {
-                const agentItem = document.createElement('div');
-                agentItem.className = 'agent-item';
-                agentItem.innerHTML = `
-                    <div class="agent-info">
-                        <h4>${agent.name}</h4>
-                        <div class="agent-namespace">${agent.namespace}</div>
-                    </div>
-                    <div class="agent-status status-${agent.status}">${agent.status}</div>
-                `;
-                agentList.appendChild(agentItem);
-            });
-        }
-        
-        function addLogEntry(message, type = 'info') {
-            const logContainer = document.getElementById('activity-log');
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            
-            const timestamp = new Date().toLocaleTimeString();
-            logEntry.innerHTML = `
-                <div>${message}</div>
-                <div class="log-timestamp">${timestamp}</div>
-            `;
-            
-            logContainer.insertBefore(logEntry, logContainer.firstChild);
-            
-            // Keep only last 10 entries
-            while (logContainer.children.length > 10) {
-                logContainer.removeChild(logContainer.lastChild);
-            }
-        }
-        
-        async function refreshAgents() {
-            try {
-                const response = await fetch('/api/agents');
-                const data = await response.json();
-                updateAgentsList(data.agents);
-                addLogEntry('Agents list refreshed', 'info');
-            } catch (error) {
-                console.error('Failed to refresh agents:', error);
-                addLogEntry('Failed to refresh agents', 'error');
-            }
-        }
+        document.getElementById('current-time').textContent = new Date().toLocaleString();
     </script>
 </body>
 </html>
-        """
-        
+        """, content_type="text/html")
+            
     async def start_monitoring_loop(self):
-        """Iniciar loop de monitoreo en background"""
+        """Starts a background task for continuous monitoring and broadcasting updates."""
+        logging.info("Starting background monitoring loop.")
         asyncio.create_task(self._monitoring_loop())
         
     async def _monitoring_loop(self):
-        """Loop continuo de monitoreo"""
+        """Continuous loop for collecting and broadcasting framework status."""
         while True:
             try:
-                # Recopilar datos actuales
                 status = await self._get_current_status()
-                
-                # Broadcast a WebSockets conectados
                 await self._broadcast_update({
                     "type": "status_update",
                     "data": status,
                     "timestamp": datetime.now().isoformat()
                 })
-                
-                await asyncio.sleep(10)  # Actualizar cada 10 segundos
-                
+                await asyncio.sleep(MONITORING_INTERVAL_SECONDS)
             except asyncio.CancelledError:
+                logging.info("Monitoring loop cancelled.")
                 break
             except Exception as e:
-                logging.error(f"Monitoring loop error: {e}")
-                await asyncio.sleep(5)
+                logging.error(f"Monitoring loop error: {e}", exc_info=True)
+                await asyncio.sleep(WEBSOCKET_RECONNECT_SECONDS) # Wait before retrying on error
                 
-    async def start(self):
-        """Iniciar el servidor del dashboard"""
+    async def start(self) -> web.AppRunner:
+        """Starts the dashboard server and its monitoring loop."""
         runner = web.AppRunner(self.app)
         await runner.setup()
         
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
         
-        # Iniciar monitoreo
         await self.start_monitoring_loop()
         
         logging.info(f"Dashboard server started at http://{self.host}:{self.port}")
@@ -773,46 +444,65 @@ class DashboardServer:
         
         return runner
 
-# ================================
+    async def stop(self, runner: web.AppRunner):
+        """Stops the dashboard server."""
+        logging.info("Stopping DashboardServer.")
+        if runner:
+            await runner.cleanup()
+        # Optionally, explicitly close all websockets
+        for ws in list(self.websockets):
+            await ws.close()
+        self.websockets.clear()
+        logging.info("DashboardServer stopped.")
+
 # DASHBOARD INTEGRATION
-# ================================
 
 class DashboardIntegration:
-    """Integración del dashboard con el framework"""
+    """Provides an integration layer between the AgentFramework and the DashboardServer."""
     
     def __init__(self, framework: AgentFramework):
+        """
+        Initializes the DashboardIntegration.
+
+        Args:
+            framework: The AgentFramework instance to integrate with.
+        """
         self.framework = framework
-        self.dashboard_server = None
+        self.dashboard_server: DashboardServer | None = None
+        self.runner: web.AppRunner | None = None
         
-    async def start_dashboard(self, host: str = "localhost", port: int = 8080):
-        """Iniciar dashboard integrado"""
+    async def start_dashboard(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> web.AppRunner:
+        """Starts the integrated dashboard."""
+        logging.info(f"Starting dashboard integration on {host}:{port}")
         self.dashboard_server = DashboardServer(self.framework, host, port)
-        runner = await self.dashboard_server.start()
-        return runner
+        self.runner = await self.dashboard_server.start()
+        return self.runner
         
     async def stop_dashboard(self):
-        """Detener dashboard"""
-        if self.dashboard_server:
-            # El runner se cierra automáticamente cuando el framework se detiene
-            pass
+        """Stops the integrated dashboard."""
+        logging.info("Stopping dashboard integration.")
+        if self.dashboard_server and self.runner:
+            await self.dashboard_server.stop(self.runner)
+            self.dashboard_server = None
+            self.runner = None
+        else:
+            logging.info("Dashboard server not running or already stopped.")
 
-# ================================
+
 # EXAMPLE USAGE
-# ================================
 
 async def dashboard_demo():
-    """Demo del dashboard web"""
+    """Demonstrates the web dashboard functionality."""
+    logging.info("Starting dashboard demo.")
     
-    logging.basicConfig(level=logging.INFO)
-    
-    # Crear framework
-    from core.autonomous_agent_framework import AgentFramework
-    from core.specialized_agents import ExtendedAgentFactory
+    # Imports for demo purposes
+    from core.autonomous_agent_framework import AgentFramework, AgentResource, ResourceType
+    from core.specialized_agents import ExtendedAgentFactory # Assuming this path is correct
     
     framework = AgentFramework()
     await framework.start()
     
-    # Crear algunos agentes para mostrar en el dashboard
+    # Create some agents to display in the dashboard
     strategist = ExtendedAgentFactory.create_agent("agent.planning.strategist", "strategist", framework)
     generator = ExtendedAgentFactory.create_agent("agent.build.code.generator", "generator", framework)
     tester = ExtendedAgentFactory.create_agent("agent.test.generator", "tester", framework)
@@ -821,14 +511,13 @@ async def dashboard_demo():
     await generator.start()
     await tester.start()
     
-    # Crear integración del dashboard
     dashboard_integration = DashboardIntegration(framework)
-    runner = await dashboard_integration.start_dashboard(host="localhost", port=8080)
+    runner = await dashboard_integration.start_dashboard(host=DEFAULT_HOST, port=DEFAULT_PORT)
     
     print("\n" + "="*60)
     print("🌐 DASHBOARD DEMO STARTED")
     print("="*60)
-    print(f"Dashboard URL: http://localhost:8080")
+    print(f"Dashboard URL: http://{DEFAULT_HOST}:{DEFAULT_PORT}")
     print(f"Active agents: {len(framework.registry.list_all_agents())}")
     print("\nFeatures available:")
     print("• Real-time agent monitoring")
@@ -839,11 +528,10 @@ async def dashboard_demo():
     print("\nPress Ctrl+C to stop...")
     
     try:
-        # Simular actividad para mostrar en el dashboard
         while True:
             await asyncio.sleep(10)
             
-            # Simular intercambio de mensajes entre agentes
+            # Simulate message exchange between agents
             await strategist.send_message(
                 generator.id,
                 "action.generate.component",
@@ -858,8 +546,7 @@ async def dashboard_demo():
                 {"code": "demo code"}
             )
             
-            # Crear recursos ocasionalmente
-            from core.autonomous_agent_framework import AgentResource, ResourceType
+            # Create resources occasionally
             demo_resource = AgentResource(
                 type=ResourceType.CODE,
                 name=f"demo_resource_{datetime.now().strftime('%H%M%S')}",
@@ -871,11 +558,230 @@ async def dashboard_demo():
             
     except KeyboardInterrupt:
         print("\n\n🛑 Stopping dashboard demo...")
-        
+        logging.info("KeyboardInterrupt received. Stopping demo.")
     finally:
         await framework.stop()
-        await runner.cleanup()
+        await dashboard_integration.stop_dashboard() # Use integration to stop
         print("👋 Dashboard demo stopped")
 
 if __name__ == "__main__":
+    # Ensure the static directory exists for the dashboard HTML
+    Path(DASHBOARD_STATIC_DIR).mkdir(exist_ok=True)
+    
+    # Create a dummy index.html for demonstration if it doesn't exist
+    index_html_path = Path(DASHBOARD_STATIC_DIR) / "index.html"
+    if not index_html_path.exists():
+        with open(index_html_path, "w") as f:
+            f.write("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Framework Dashboard</title>
+    <style>
+        /* Minimal CSS for demonstration. Full CSS would be in a separate file. */
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .dashboard-container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #2c3e50; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #e9f7ef; padding: 15px; border-radius: 5px; text-align: center; }
+        .stat-card h3 { color: #28a745; margin-bottom: 5px; }
+        .stat-value { font-size: 2em; font-weight: bold; color: #2c3e50; }
+        .card { background: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
+        .agent-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .agent-item:last-child { border-bottom: none; }
+        .agent-status { padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; }
+        .status-active { background-color: #d4edda; color: #155724; }
+        .status-busy { background-color: #fff3cd; color: #856404; }
+        .status-idle { background-color: #d1ecf1; color: #0c5460; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .log-entry { background: #f8f8f8; border-left: 4px solid #6c757d; padding: 8px; margin-bottom: 5px; border-radius: 3px; }
+        .log-timestamp { font-size: 0.8em; color: #666; text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1>Agent Framework Dashboard</h1>
+        <p>System Status: <span id="system-status">Loading...</span> | Last Update: <span id="last-update">--</span></p>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Agents</h3>
+                <div class="stat-value" id="total-agents">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Agents</h3>
+                <div class="stat-value" id="active-agents">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Messages Sent (Mock)</h3>
+                <div class="stat-value" id="messages-sent">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Resources Created (Mock)</h3>
+                <div class="stat-value" id="resources-created">0</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="card">
+                <h2>Active Agents</h2>
+                <div id="agent-list">
+                    Loading agents...
+                </div>
+            </div>
+            <div class="card">
+                <h2>Activity Log</h2>
+                <div id="activity-log">
+                    Loading activity...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        const WS_RECONNECT_INTERVAL = 5000; // milliseconds
+        const DATA_REFRESH_INTERVAL = 30000; // milliseconds
+        const MAX_LOG_ENTRIES = 10;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initWebSocket();
+            loadInitialData();
+            setInterval(loadInitialData, DATA_REFRESH_INTERVAL);
+        });
+
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = function() {
+                console.log('WebSocket connected');
+                addLogEntry('WebSocket connected', 'info');
+                websocket.send(JSON.stringify({type: 'subscribe'}));
+            };
+            
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+            
+            websocket.onclose = function() {
+                console.log('WebSocket disconnected. Reconnecting...');
+                addLogEntry('WebSocket disconnected, attempting reconnect...', 'warning');
+                setTimeout(initWebSocket, WS_RECONNECT_INTERVAL);
+            };
+            
+            websocket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                addLogEntry('WebSocket error', 'error');
+                websocket.close(); // Force close to trigger onclose and reconnect
+            };
+        }
+        
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'agent_action':
+                    addLogEntry(`Agent ${data.agent_id} executed ${data.action}`, 'info');
+                    loadInitialData(); // Refresh agents and stats after an action
+                    break;
+                case 'status_update':
+                    updateStats(data.data);
+                    document.getElementById('last-update').textContent = new Date(data.timestamp).toLocaleTimeString();
+                    break;
+                case 'subscription_confirmed':
+                    addLogEntry('Subscribed to real-time updates', 'success');
+                    break;
+                default:
+                    console.log('Received unknown WebSocket message type:', data.type, data);
+            }
+        }
+        
+        async function loadInitialData() {
+            try {
+                const agentsResponse = await fetch('/api/agents');
+                const agentsData = await agentsResponse.json();
+                updateAgentsList(agentsData.agents);
+                
+                const metricsResponse = await fetch('/api/metrics');
+                const metricsData = await metricsResponse.json();
+                updateStats(metricsData);
+                
+                // You can add more initial data fetching here (e.g., messages, resources)
+                // For this refactor, we focus on agents and metrics as they are most dynamic
+
+            } catch (error) {
+                console.error('Failed to load initial dashboard data:', error);
+                addLogEntry('Failed to load dashboard data. Check server logs.', 'error');
+            }
+        }
+        
+        function updateStats(data) {
+            document.getElementById('total-agents').textContent = data.total_agents || 0;
+            document.getElementById('active-agents').textContent = data.active_agents || 0;
+            // Mock values as actual counts might need more complex aggregation from messages/resources
+            document.getElementById('messages-sent').textContent = data.messages_sent || 0; 
+            document.getElementById('resources-created').textContent = data.resources_created || 0;
+            document.getElementById('system-status').textContent = data.system_status || 'Unknown';
+            const statusIndicator = document.querySelector('.status-indicator');
+            if (statusIndicator) {
+                statusIndicator.className = `status-indicator status-${data.system_status}`;
+            }
+        }
+        
+        function updateAgentsList(agents) {
+            const agentList = document.getElementById('agent-list');
+            agentList.innerHTML = ''; // Clear previous list
+            
+            if (!agents || agents.length === 0) {
+                agentList.innerHTML = '<p>No agents currently active.</p>';
+                return;
+            }
+            
+            agents.forEach(agent => {
+                const agentItem = document.createElement('div');
+                agentItem.className = 'agent-item';
+                agentItem.innerHTML = `
+                    <div class="agent-info">
+                        <h4>${agent.name} (${agent.id.substring(0, 8)}...)</h4>
+                        <div class="agent-namespace">${agent.namespace}</div>
+                    </div>
+                    <div class="agent-status status-${agent.status.toLowerCase()}">${agent.status}</div>
+                `;
+                agentList.appendChild(agentItem);
+            });
+        }
+        
+        function addLogEntry(message, type = 'info') {
+            const logContainer = document.getElementById('activity-log');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`; // Add type class for potential styling
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.innerHTML = `
+                <div>${message}</div>
+                <div class="log-timestamp">${timestamp}</div>
+            `;
+            
+            // Add new entry to the top
+            if (logContainer.firstChild) {
+                logContainer.insertBefore(logEntry, logContainer.firstChild);
+            } else {
+                logContainer.appendChild(logEntry);
+            }
+            
+            // Keep only the last N entries
+            while (logContainer.children.length > MAX_LOG_ENTRIES) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+        }
+    </script>
+</body>
+</html>
+            """)
+        logging.info(f"Created dummy {index_html_path} for demo.")
+
     asyncio.run(dashboard_demo())
