@@ -1,4 +1,3 @@
-# agentapi/models/agent_models.py
 import uuid
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
@@ -73,10 +72,7 @@ class AgentCapability:
     description: str
     input_schema: Dict[str, Any] = field(default_factory=dict)
     output_schema: Dict[str, Any] = field(default_factory=dict)
-    handler: Optional[Callable[..., Any]] = None
-    parameters: List[Dict[str, Any]] = field(default_factory=list)
-    is_private: bool = False
-    requires_permission: Optional[str] = None
+    handler: Optional[Callable] = None
 
 @dataclass
 class AgentInfo:
@@ -85,3 +81,4 @@ class AgentInfo:
     namespace: str
     status: AgentStatus
     last_heartbeat: datetime = field(default_factory=datetime.now)
+    capabilities: List[AgentCapability] = field(default_factory=list)
