@@ -1,17 +1,12 @@
 # agentapi/models/general_models.py
-
+import uuid
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, Optional
 from datetime import datetime
 from enum import Enum
 
-# ================================\
-# GENERAL MODELS FOR API RESPONSES, ERRORS, ETC.
-# ================================
-
 @dataclass
 class APIResponse:
-    """Respuesta estándar de la API"""
     success: bool
     message: str
     data: Optional[Any] = None
@@ -30,20 +25,7 @@ class APIResponse:
     def error_response(message: str, code: int = 400, details: Any = None) -> Dict[str, Any]:
         return APIResponse(success=False, message=message, data={"error_code": code, "details": details}).to_dict()
 
-
-@dataclass
-class ErrorResponse:
-    """Modelo para respuestas de error"""
-    message: str
-    code: int
-    details: Optional[Any] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {"error": {"message": self.message, "code": self.code, "details": self.details}}
-
-# Modelos para Auditoría (podrían ir en security_system.py, pero si es global, aquí)
 class AuditEventType(Enum):
-    """Tipos de eventos de auditoría"""
     AGENT_CREATED = "AGENT_CREATED"
     AGENT_DELETED = "AGENT_DELETED"
     AGENT_ACTION = "AGENT_ACTION"
@@ -69,16 +51,15 @@ class AuditEventType(Enum):
 
 @dataclass
 class AuditEvent:
-    """Representa un evento auditable en el sistema"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
     event_type: AuditEventType
-    user_id: Optional[str] = None # Para usuarios externos (CLI/API)
-    agent_id: Optional[str] = None # Para acciones de agentes
-    action: str # Descripción corta de la acción (e.g., "login", "create_agent", "execute_capability")
-    resource_id: Optional[str] = None # ID del recurso afectado (ej. ID de agente, ID de recurso)
-    result: str # "SUCCESS" o "FAILED"
-    details: Dict[str, Any] = field(default_factory=dict) # Detalles adicionales en JSON
+    user_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    action: str
+    resource_id: Optional[str] = None
+    result: str
+    details: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         event_dict = asdict(self)
@@ -86,16 +67,13 @@ class AuditEvent:
         event_dict["event_type"] = self.event_type.value
         return event_dict
 
-# Modelos para Monitoreo y Alertas (podrían ir en monitoring_system.py, pero si son genéricos, aquí)
 class AlertSeverity(Enum):
-    """Severidad de alertas"""
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
     FATAL = "fatal"
 
 class AlertStatus(Enum):
-    """Estado de alertas"""
     ACTIVE = "active"
     RESOLVED = "resolved"
     ACKNOWLEDGED = "acknowledged"
@@ -103,7 +81,6 @@ class AlertStatus(Enum):
 
 @dataclass
 class Metric:
-    """Métrica del sistema"""
     name: str
     value: float
     timestamp: datetime = field(default_factory=datetime.now)
@@ -118,7 +95,6 @@ class Metric:
 
 @dataclass
 class Alert:
-    """Alerta del sistema"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     rule_name: str
     severity: AlertSeverity

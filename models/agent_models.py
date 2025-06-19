@@ -1,5 +1,4 @@
 # agentapi/models/agent_models.py
-
 import uuid
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
@@ -7,7 +6,6 @@ from enum import Enum
 from datetime import datetime
 
 class AgentStatus(Enum):
-    """Estados de los agentes"""
     INITIALIZING = "initializing"
     ACTIVE = "active"
     BUSY = "busy"
@@ -17,17 +15,15 @@ class AgentStatus(Enum):
     SUSPENDED = "suspended"
 
 class MessageType(Enum):
-    """Tipos de mensajes entre agentes"""
     COMMAND = "command"
     REQUEST = "request"
     RESPONSE = "response"
     EVENT = "event"
     HEARTBEAT = "heartbeat"
     ERROR = "error"
-    BROADCAST = "broadcast" # Mensaje para todos los agentes o un grupo
+    BROADCAST = "broadcast"
 
 class ResourceType(Enum):
-    """Tipos de recursos"""
     CODE = "code"
     INFRA = "infra"
     WORKFLOW = "workflow"
@@ -42,43 +38,50 @@ class ResourceType(Enum):
 
 @dataclass
 class AgentMessage:
-    """Mensaje entre agentes"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     sender_id: str = ""
-    receiver_id: str = "" # Puede ser un ID de agente o un "broadcast"
+    receiver_id: str = ""
     message_type: MessageType = MessageType.COMMAND
     content: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
-    trace_id: str = "" # Para seguimiento de conversaciones/solicitudes
-    # Posibles campos adicionales para contexto de seguridad, firma, etc.
-
-@dataclass
-class AgentCapability:
-    """Capacidad que un agente puede realizar"""
-    name: str
-    namespace: str # Ej: "agent.planning.strategist.define_strategy"
-    description: str
-    input_schema: Dict[str, Any] = field(default_factory=dict) # JSON Schema
-    output_schema: Dict[str, Any] = field(default_factory=dict) # JSON Schema
-    handler: Optional[Callable[..., Any]] = None # Función que maneja la capacidad
-    parameters: List[Dict[str, Any]] = field(default_factory=list) # para descripción detallada de OpenAPI
-    is_private: bool = False # Si la capacidad es interna (solo para otros agentes con permiso) o pública (expuesta vía API)
-    requires_permission: Optional[str] = None # Permiso de seguridad necesario para ejecutar esta capacidad
+    trace_id: str = ""
+    status: str = "sent"
+    error: Optional[str] = None
 
 @dataclass
 class AgentResource:
-    """Representa un recurso gestionado por el framework"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    type: ResourceType
-    name: str
-    namespace: str # Ej: "code.backend.user_service"
-    data: Any # Contenido real del recurso (ej. código, JSON de configuración)
+    type: ResourceType = ResourceType.DATA
+    name: str = ""
+    namespace: str = ""
+    version: str = "1.0.0"
+    data: Any = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
-    owner_agent_id: Optional[str] = None # Agente que creó o es responsable del recurso
-    version: str = "1.0.0"
-    checksum: Optional[str] = None # Hash para verificar integridad
+    owner_agent_id: Optional[str] = None
+    access_permissions: List[Dict[str, Any]] = field(default_factory=list)
+    checksum: Optional[str] = None
     tags: Dict[str, str] = field(default_factory=dict)
-    is_locked: bool = False # Indica si el recurso está actualmente en uso/bloqueado
-    locked_by: Optional[str] = None # ID del agente que lo bloqueó
+    is_locked: bool = False
+    locked_by: Optional[str] = None
     lock_timestamp: Optional[datetime] = None
+
+@dataclass
+class AgentCapability:
+    name: str
+    namespace: str
+    description: str
+    input_schema: Dict[str, Any] = field(default_factory=dict)
+    output_schema: Dict[str, Any] = field(default_factory=dict)
+    handler: Optional[Callable[..., Any]] = None
+    parameters: List[Dict[str, Any]] = field(default_factory=list)
+    is_private: bool = False
+    requires_permission: Optional[str] = None
+
+@dataclass
+class AgentInfo:
+    id: str
+    name: str
+    namespace: str
+    status: AgentStatus
+    last_heartbeat: datetime = field(default_factory=datetime.now)
